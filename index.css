@@ -1,0 +1,269 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap');
+
+/* Basic Reset & CSS Variables */
+:root {
+    --bg-main: #09090b;
+    --bg-panel: #18181b;
+    --border-color: #27272a;
+    --accent-purple: #7c3aed;
+    --text-primary: #ffffff;
+    --text-secondary: #a1a1aa;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Common Classes */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.5s ease-out;
+}
+
+.animate-fade-in-up {
+    animation: fadeInUp 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Notebook Lines Background for Editor */
+.editor-content {
+    background-image: linear-gradient(#27272a 1px, transparent 1px);
+    background-size: 100% 32px;
+    line-height: 32px;
+    background-attachment: local;
+}
+
+/* Flashcard Flip Animation */
+.perspective-1000 {
+    perspective: 1000px;
+}
+
+.flip-card {
+    position: relative;
+    transform-style: preserve-3d;
+}
+
+.flip-card.flipped {
+    transform: rotateY(180deg);
+}
+
+.flip-card-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+}
+
+.flip-card-front,
+.flip-card-back {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden;
+}
+
+.flip-card-back {
+    transform: rotateY(180deg);
+}
+
+/* Vertical Notebook Layout */
+.notebook-container {
+    background: #09090b;
+    padding: 60px 20px;
+    min-height: 100%;
+}
+
+.notebook-paper {
+    background: #18181b;
+    padding: 64px 80px !important;
+    max-width: 850px;
+    margin: 0 auto;
+    border: 1px solid #27272a;
+    border-radius: 12px;
+    box-shadow: 0 40px 100px -20px rgba(0, 0, 0, 0.8);
+    min-height: 1200px;
+    color: #f4f4f5;
+    font-size: 17px;
+    line-height: 1.8;
+    outline: none;
+    transition: all 0.3s ease;
+}
+
+/* =========================================
+   🖨️ PDF & PRINT STYLES (V3 - STABLE)
+   ========================================= */
+
+/* 
+   When PDF mode is active, we don't hide the root.
+   We just style the printable areas to be clean.
+*/
+body.pdf-mode {
+    background: white !important;
+}
+
+/* Hiding non-printable elements without breaking the tree */
+body.pdf-mode header,
+body.pdf-mode .no-print,
+body.pdf-mode .sidebar,
+body.pdf-mode button:not(.pdf-close-btn),
+body.pdf-mode .chat-sidebar,
+body.pdf-mode .loading-overlay {
+    display: none !important;
+}
+
+/* --- BULLETPROOF PDF EXPORT (Absolute Origin Strategy) --- */
+
+/* 1. Global Reset: Clean White Canvas */
+body.pdf-mode,
+body.pdf-mode #root,
+body.pdf-mode main {
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    width: 100% !important;
+    display: block !important;
+    position: static !important;
+}
+
+/* 2. Nuclear Hiding */
+body.pdf-mode header,
+body.pdf-mode .no-print,
+body.pdf-mode .sidebar,
+body.pdf-mode .chat-sidebar,
+body.pdf-mode button:not(.pdf-close-btn),
+body.pdf-mode .loading-overlay {
+    display: none !important;
+}
+
+/* 3. Target Container - Natural Flow (Most Reliable) */
+body.pdf-mode #printable-area,
+body.pdf-mode #exam-pdf-container {
+    background: white !important;
+    padding: 20mm !important;
+    margin: 0 auto !important;
+    /* Center the A4 sheet naturally */
+    width: 210mm !important;
+    min-height: 297mm !important;
+    display: block !important;
+    visibility: visible !important;
+    position: relative !important;
+    z-index: 1000 !important;
+    box-shadow: none !important;
+    border: none !important;
+    opacity: 1 !important;
+    box-sizing: border-box !important;
+}
+
+/* 4. Text & Color Preservation */
+body.pdf-mode #printable-area *,
+body.pdf-mode #exam-pdf-container * {
+    visibility: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+}
+
+/* Restore Question Numbers (White text on black background) */
+body.pdf-mode .bg-black {
+    background-color: black !important;
+    color: white !important;
+}
+
+/* Base text color: black (unforced to allow style overrides) */
+body.pdf-mode #printable-area,
+body.pdf-mode #exam-pdf-container,
+body.pdf-mode #printable-area p,
+body.pdf-mode #printable-area span,
+body.pdf-mode #exam-pdf-container p,
+body.pdf-mode #exam-pdf-container span {
+    color: black;
+}
+
+/* Preserve colored text/highlights from AI and Editor */
+body.pdf-mode [style*="color"],
+body.pdf-mode [class*="text-"]:not(.text-white) {
+    color: inherit !important;
+}
+
+body.pdf-mode [style*="background"],
+body.pdf-mode [class*="bg-"]:not(.bg-black) {
+    background-color: inherit !important;
+}
+
+/* 5. Reveal hidden Exam container - move to top of document */
+body.pdf-mode .fixed.left-\[-9999px\] {
+    left: 0 !important;
+    top: 0 !important;
+    position: static !important;
+    visibility: visible !important;
+    display: block !important;
+    width: 100% !important;
+}
+
+/* Heading visibility */
+body.pdf-mode h1,
+body.pdf-mode h2,
+body.pdf-mode h3,
+body.pdf-mode h4 {
+    color: inherit !important;
+}
+
+
+
+/* Exam specific question blocks */
+.exam-question-block {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    margin-bottom: 25px;
+    display: block !important;
+}
+
+/* Mermaid MindMaps in PDF */
+body.pdf-mode .mermaid {
+    background: white !important;
+}
+
+/* Page Break Helper */
+.html2pdf__page-break {
+    display: block;
+    height: 0;
+    page-break-before: always;
+}
