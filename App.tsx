@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
@@ -10,6 +9,7 @@ import Pomodoro from './components/Pomodoro';
 import LevelUpModal from './components/LevelUpModal';
 import { LanguageProvider } from './lib/LanguageContext';
 import { GamificationProvider } from './lib/GamificationContext';
+import { supabase } from './lib/supabaseClient';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
@@ -28,14 +28,46 @@ const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
-    // Check for Supabase token OR Guest Token
-    const token = localStorage.getItem('sb-access-token');
-    const isGuest = localStorage.getItem('is-guest') === 'true';
+    // Check demo authentication OR Supabase session
+    const checkAuth = async () => {
+      // Demo authentication check (Staff or Student via localStorage)
+      const isStaff = localStorage.getItem('staff_authenticated') === 'true';
+      const isStudent = localStorage.getItem('student_authenticated') === 'true';
+      
+      if (isStaff || isStudent) {
+        setIsAuthenticated(true);
+        return;
+      }
 
-    setIsAuthenticated(!!token || isGuest);
+      // Supabase session check (for real auth when configured)
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setIsAuthenticated(!!session);
+      } catch (e) {
+        // Supabase not configured, check localStorage only
+        setIsAuthenticated(false);
+      }
+    };
+    
+    checkAuth();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const isStaff = localStorage.getItem('staff_authenticated') === 'true';
+      const isStudent = localStorage.getItem('student_authenticated') === 'true';
+      setIsAuthenticated(!!session || isStaff || isStudent);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  if (isAuthenticated === null) return null; // Loading state
+  if (isAuthenticated === null) {
+    return (
+      <div className="min-h-screen bg-[#09090b] flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   return isAuthenticated ? <Layout>{children}</Layout> : <Navigate to="/auth" replace />;
 };

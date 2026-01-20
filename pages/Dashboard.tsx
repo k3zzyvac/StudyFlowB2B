@@ -194,11 +194,17 @@ const TeacherDashboard: React.FC<{
     onClassLog: () => void,
     notes: Note[],
     onAssignOpen: (id: string, type: 'note' | 'exam', title: string) => void,
-    onNoteClick: (note: Note) => void
-}> = ({ onAiNoteGen, onExamGen, onClassLog, notes, onAssignOpen, onNoteClick }) => {
+    onNoteClick: (note: Note) => void,
+    institutionName: string
+}> = ({ onAiNoteGen, onExamGen, onClassLog, notes, onAssignOpen, onNoteClick, institutionName }) => {
     return (
         <div className="flex flex-col gap-8 h-full overflow-y-auto p-4 md:p-8">
-            <h2 className="text-2xl font-bold text-white mb-2">Öğretmen Paneli</h2>
+            <div>
+                <h2 className="text-2xl font-bold text-white mb-1">Öğretmen Paneli</h2>
+                <p className="text-indigo-400 text-sm font-bold">
+                    <i className="fas fa-building mr-2"></i>{institutionName}
+                </p>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {/* 1. AI NOT OLUŞTURUCU (MODALI AÇAR) */}
@@ -291,16 +297,17 @@ const TeacherDashboard: React.FC<{
 };
 
 // --- PRINCIPAL DASHBOARD ---
-// --- PRINCIPAL DASHBOARD ---
-const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChange: () => void }> = ({ weeklyReports: initialReports, onClassChange }) => {
-    const [reports, setReports] = useState<WeeklyReport[]>(initialReports);
+const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChange: () => void, institutionName: string }> = ({ weeklyReports: initialReports, onClassChange, institutionName }) => {
+    const [reports, setReports] = useState<WeeklyReport[]>([]);
     const [classList, setClassList] = useState<SchoolClass[]>([]);
     const [showAddClassModal, setShowAddClassModal] = useState(false);
+    const [showDeleteClassModal, setShowDeleteClassModal] = useState(false);
+    const [classToDelete, setClassToDelete] = useState<SchoolClass | null>(null);
 
-    // View State: 'classes' -> 'weeks' -> 'reports' -> 'detail'
-    const [viewMode, setViewMode] = useState<'classes' | 'weeks' | 'reports' | 'detail'>('classes');
+    // View State: 'classes' -> 'dates' -> 'reports' -> 'detail'
+    const [viewMode, setViewMode] = useState<'classes' | 'dates' | 'reports' | 'detail'>('classes');
     const [selectedClass, setSelectedClass] = useState('');
-    const [selectedWeek, setSelectedWeek] = useState('');
+    const [selectedDate, setSelectedDate] = useState('');
     const [activeReport, setActiveReport] = useState<WeeklyReport | null>(null);
     // Sınıf Ekleme State'leri
     const [newClassGrade, setNewClassGrade] = useState('9');
@@ -308,81 +315,115 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
 
     useEffect(() => {
         fetchClasses();
+        // Raporları kuruma göre filtrele
+        const institutionReports = initialReports.filter(r => {
+            // localStorage key ile eşleştir
+            const reportInstitution = localStorage.getItem('institution_name') || '';
+            return true; // Şimdilik hepsini göster, gerçek filtreleme için institution_id kullanılmalı
+        });
         setReports(initialReports);
-    }, [initialReports]);
+    }, [initialReports, institutionName]);
 
     const fetchClasses = async () => {
-        try {
-            const { data, error } = await supabase.from('classes').select('*').order('grade', { ascending: true }).order('branch', { ascending: true });
-            if (error || !data) {
-                // Eğer hata varsa (örneğin tablo yoksa) yine de boş gösterme, mock data göster
-                // setClassList([]); 
-                // Ancak kullanıcı "gerçek" ekleme istediği için burada hata varsa boş dönmesi daha doğru olabilir.
-                // Yine de uygulamanın çökmemesi için boş array atıyoruz.
-                console.error("Sınıflar çekilemedi:", error);
-            } else {
-                setClassList(data as SchoolClass[]);
-            }
-        } catch (e) { console.error(e); }
-    };
-
-    const handleAddClass = async () => {
-        try {
-            const { error } = await supabase.from('classes').insert([{
-                grade: newClassGrade,
-                branch: newClassBranch.toUpperCase()
-            }]);
-
-            if (error) throw error;
-
-            toast.success(`${newClassGrade}-${newClassBranch} sınıfı eklendi`);
-            setShowAddClassModal(false);
-            fetchClasses(); // Listeyi yenile
-        } catch (error) {
-            console.error("Sınıf ekleme hatası:", error);
-            toast.error("Sınıf eklenirken bir hata oluştu.");
+        // Kuruma özel sınıfları localStorage'dan çek
+        const storageKey = `classes_${institutionName.replace(/\s/g, '_')}`;
+        const localClasses = JSON.parse(localStorage.getItem(storageKey) || '[]');
+        
+        if (localClasses.length > 0) {
+            setClassList(localClasses);
+            return;
         }
+        
+        // Yoksa varsayılan sınıfları oluştur
+        const defaultClasses: SchoolClass[] = [
+            { id: `${institutionName}-9a`, institution_id: institutionName, grade: '9', branch: 'A' },
+            { id: `${institutionName}-9b`, institution_id: institutionName, grade: '9', branch: 'B' },
+            { id: `${institutionName}-10a`, institution_id: institutionName, grade: '10', branch: 'A' },
+            { id: `${institutionName}-11a`, institution_id: institutionName, grade: '11', branch: 'A' },
+            { id: `${institutionName}-12a`, institution_id: institutionName, grade: '12', branch: 'A' },
+        ];
+        localStorage.setItem(storageKey, JSON.stringify(defaultClasses));
+        setClassList(defaultClasses);
     };
 
-    const handleDeleteReport = async (id: string, e: React.MouseEvent) => {
+    const handleAddClass = () => {
+        const storageKey = `classes_${institutionName.replace(/\s/g, '_')}`;
+        const newClass: SchoolClass = {
+            id: `${institutionName}-${newClassGrade}${newClassBranch.toLowerCase()}-${Date.now()}`,
+            institution_id: institutionName,
+            grade: newClassGrade,
+            branch: newClassBranch.toUpperCase()
+        };
+        
+        const updatedClasses = [...classList, newClass];
+        localStorage.setItem(storageKey, JSON.stringify(updatedClasses));
+        setClassList(updatedClasses);
+        
+        toast.success(`${newClassGrade}-${newClassBranch.toUpperCase()} sınıfı eklendi`);
+        setShowAddClassModal(false);
+        setNewClassGrade('9');
+        setNewClassBranch('A');
+    };
+
+    const handleDeleteClass = (cls: SchoolClass) => {
+        setClassToDelete(cls);
+        setShowDeleteClassModal(true);
+    };
+
+    const confirmDeleteClass = () => {
+        if (!classToDelete) return;
+        
+        const storageKey = `classes_${institutionName.replace(/\s/g, '_')}`;
+        const updatedClasses = classList.filter(c => c.id !== classToDelete.id);
+        localStorage.setItem(storageKey, JSON.stringify(updatedClasses));
+        setClassList(updatedClasses);
+        
+        toast.success(`${classToDelete.grade}-${classToDelete.branch} sınıfı silindi`);
+        setShowDeleteClassModal(false);
+        setClassToDelete(null);
+    };
+
+    const handleDeleteReport = (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
         if (!confirm("Bu raporu silmek istediğinize emin misiniz?")) return;
-        try {
-            const { error } = await supabase.from('weekly_reports').delete().eq('id', id);
-            if (!error) {
-                const updated = reports.filter(r => r.id !== id);
-                setReports(updated);
-                localStorage.setItem('mock_weekly_reports', JSON.stringify(updated));
-                toast.success("Rapor silindi");
-                if (activeReport?.id === id) setViewMode('reports');
-            }
-        } catch (err) { }
+        
+        const storageKey = `reports_${institutionName.replace(/\s/g, '_')}`;
+        const updated = reports.filter(r => r.id !== id);
+        setReports(updated);
+        localStorage.setItem(storageKey, JSON.stringify(updated));
+        
+        // Global storage da güncelle
+        localStorage.setItem('mock_weekly_reports', JSON.stringify(updated));
+        
+        toast.success("Rapor başarıyla silindi");
+        if (activeReport?.id === id) setViewMode('reports');
     };
 
-    const getUniqueWeeks = () => {
+    // Günlük raporlar - tarihe göre grupla
+    const getUniqueDates = () => {
         const classReports = reports.filter(r => r.class_id === selectedClass);
-        const weeks = Array.from(new Set(classReports.map(r => r.week)));
-        return weeks.sort().reverse();
+        const dates = Array.from(new Set(classReports.map(r => r.date)));
+        return dates.sort().reverse();
     };
 
-    const getReportsForWeek = () => {
-        return reports.filter(r => r.class_id === selectedClass && r.week === selectedWeek);
+    const getReportsForDate = () => {
+        return reports.filter(r => r.class_id === selectedClass && r.date === selectedDate);
     };
 
     const generateWeeklyPDF = () => {
-        const weekReports = getReportsForWeek();
+        const dateReports = getReportsForDate();
         const element = document.createElement('div');
+        const dateStr = selectedDate ? new Date(selectedDate).toLocaleDateString('tr-TR') : '';
         // PDF için Beyaz Arka Plan, Siyah Yazı (Light Mode)
         element.innerHTML = `
             <div style="padding: 40px; font-family: 'Segoe UI', Arial, sans-serif; background: white !important; color: black !important; width: 100%;">
                 <div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 20px; margin-bottom: 30px;">
-                    <h1 style="margin: 0; font-size: 24px; color: #000; font-weight: 900; letter-spacing: 1px;">HAFTALIK SINIF RAPORU</h1>
-                    <p style="margin: 5px 0; color: #444; font-size: 14px;">${selectedClass} | ${selectedWeek}</p>
+                    <h1 style="margin: 0; font-size: 24px; color: #000; font-weight: 900; letter-spacing: 1px;">GÜNLÜK SINIF RAPORU</h1>
+                    <p style="margin: 5px 0; color: #444; font-size: 14px;">${selectedClass} | ${dateStr} | ${institutionName}</p>
                 </div>
                 <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; border: 1px solid #000;">
                     <thead>
                         <tr style="background-color: #f0f0f0; color: #000;">
-                            <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold;">Tarih</th>
                             <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold;">Ders / Öğretmen</th>
                             <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold;">Konu</th>
                             <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold;">Notlar</th>
@@ -390,9 +431,8 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
                         </tr>
                     </thead>
                     <tbody>
-                        ${weekReports.map(r => `
+                        ${dateReports.map((r: WeeklyReport) => `
                             <tr style="border-bottom: 1px solid #000;">
-                                <td style="border: 1px solid #000; padding: 10px; color: #000;">${new Date(r.date).toLocaleDateString('tr-TR')}</td>
                                 <td style="border: 1px solid #000; padding: 10px; color: #000;">
                                     <div style="font-weight: bold;">${r.lesson}</div>
                                     <div style="font-size: 11px; color: #444;">${r.teacher_name}</div>
@@ -405,14 +445,14 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
                     </tbody>
                 </table>
                 <div style="margin-top: 40px; text-align: right; font-size: 10px; color: #666; border-top: 1px solid #ccc; padding-top: 10px;">
-                    Rapor Oluşturulma Tarihi: ${new Date().toLocaleDateString('tr-TR')} | StudyFlow
+                    Rapor Oluşturulma Tarihi: ${new Date().toLocaleDateString('tr-TR')} | StudyFlow - ${institutionName}
                 </div>
             </div>
         `;
 
         const opt = {
             margin: 0.5,
-            filename: `${selectedClass}_${selectedWeek}_Raporu.pdf`,
+            filename: `${selectedClass}_${dateStr}_Raporu.pdf`,
             image: { type: 'jpeg', quality: 0.98 },
             html2canvas: { scale: 2, useCORS: true },
             jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' }
@@ -479,16 +519,19 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
             <header className="flex items-center justify-between">
                 <div>
                     <h2 className="text-2xl font-black text-white tracking-tight">YÖNETİM PANELİ</h2>
-                    <p className="text-gray-500 text-sm">
+                    <p className="text-purple-400 text-sm font-bold">
+                        <i className="fas fa-building mr-2"></i>{institutionName}
+                    </p>
+                    <p className="text-gray-500 text-xs mt-1">
                         {viewMode === 'classes' && 'Sınıf Listesi'}
-                        {viewMode === 'weeks' && `${selectedClass} - Tarih Seçimi`}
-                        {viewMode === 'reports' && `${selectedClass} - ${selectedWeek} Raporları`}
+                        {viewMode === 'dates' && `${selectedClass} - Günlük Raporlar`}
+                        {viewMode === 'reports' && `${selectedClass} - ${new Date(selectedDate).toLocaleDateString('tr-TR')} Raporları`}
                     </p>
                 </div>
                 {viewMode !== 'classes' && (
                     <button onClick={() => {
                         if (viewMode === 'detail') setViewMode('reports');
-                        else if (viewMode === 'reports') setViewMode('weeks');
+                        else if (viewMode === 'reports') setViewMode('dates');
                         else setViewMode('classes');
                     }} className="text-gray-400 hover:text-white flex items-center gap-2 font-bold">
                         <i className="fas fa-arrow-left"></i> Geri
@@ -499,11 +542,16 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
             {viewMode === 'classes' && (
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 animate-fade-in">
                     {classList.map(cls => (
-                        <button key={cls.id} onClick={() => { setSelectedClass(`${cls.grade}-${cls.branch}`); setViewMode('weeks'); }}
-                            className="p-6 rounded-2xl border border-[#27272A] bg-[#18181B] hover:border-purple-500 hover:bg-[#202025] transition-all group">
-                            <div className="text-2xl font-black text-white group-hover:text-purple-400 transition-colors">{cls.grade}-{cls.branch}</div>
-                            <div className="text-[10px] uppercase font-bold text-gray-500">Sınıf Dosyası</div>
-                        </button>
+                        <div key={cls.id} className="relative group">
+                            <button onClick={() => { setSelectedClass(`${cls.grade}-${cls.branch}`); setViewMode('dates'); }}
+                                className="w-full p-6 rounded-2xl border border-[#27272A] bg-[#18181B] hover:border-purple-500 hover:bg-[#202025] transition-all">
+                                <div className="text-2xl font-black text-white group-hover:text-purple-400 transition-colors">{cls.grade}-{cls.branch}</div>
+                                <div className="text-[10px] uppercase font-bold text-gray-500">Sınıf Dosyası</div>
+                            </button>
+                            <button onClick={() => handleDeleteClass(cls)} className="absolute -top-2 -right-2 w-6 h-6 bg-red-600 hover:bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <i className="fas fa-times"></i>
+                            </button>
+                        </div>
                     ))}
                     <button onClick={() => setShowAddClassModal(true)} className="p-6 rounded-2xl border border-dashed border-[#27272A] hover:border-white text-gray-500 hover:text-white transition-all flex flex-col items-center justify-center gap-2">
                         <i className="fas fa-plus text-xl"></i>
@@ -512,18 +560,18 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
                 </div>
             )}
 
-            {viewMode === 'weeks' && (
+            {viewMode === 'dates' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in">
-                    {getUniqueWeeks().length === 0 ? (
-                        <div className="col-span-full text-center py-20 text-gray-500">Bu sınıfa ait rapor bulunamadı.</div>
+                    {getUniqueDates().length === 0 ? (
+                        <div className="col-span-full text-center py-20 text-gray-500">Bu sınıfa ait günlük rapor bulunamadı.</div>
                     ) : (
-                        getUniqueWeeks().map(week => (
-                            <button key={week} onClick={() => { setSelectedWeek(week); setViewMode('reports'); }}
+                        getUniqueDates().map(date => (
+                            <button key={date} onClick={() => { setSelectedDate(date); setViewMode('reports'); }}
                                 className="flex items-center gap-4 p-6 rounded-2xl border border-[#27272A] bg-[#18181B] hover:border-blue-500 hover:bg-[#202025] transition-all text-left">
-                                <div className="w-12 h-12 bg-blue-500/10 text-blue-400 rounded-xl flex items-center justify-center text-xl"><i className="fas fa-calendar-alt"></i></div>
+                                <div className="w-12 h-12 bg-blue-500/10 text-blue-400 rounded-xl flex items-center justify-center text-xl"><i className="fas fa-calendar-day"></i></div>
                                 <div>
-                                    <h4 className="text-white font-bold">{week}</h4>
-                                    <p className="text-xs text-gray-500 mt-1">Klasörü Aç</p>
+                                    <h4 className="text-white font-bold">{new Date(date).toLocaleDateString('tr-TR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h4>
+                                    <p className="text-xs text-gray-500 mt-1">{reports.filter(r => r.class_id === selectedClass && r.date === date).length} rapor</p>
                                 </div>
                             </button>
                         ))
@@ -533,23 +581,29 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
 
             {viewMode === 'reports' && (
                 <div className="space-y-6 animate-fade-in">
-                    <div className="flex justify-end">
+                    <div className="flex justify-between items-center">
+                        <h3 className="text-white font-bold">{new Date(selectedDate).toLocaleDateString('tr-TR')} - {selectedClass}</h3>
                         <button onClick={generateWeeklyPDF} className="bg-red-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-red-700 transition-all flex items-center gap-2">
-                            <i className="fas fa-file-pdf"></i> Tümünü Tablo Olarak İndir
+                            <i className="fas fa-file-pdf"></i> PDF İndir
                         </button>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {getReportsForWeek().map(r => (
-                            <div key={r.id} onClick={() => { setActiveReport(r); setViewMode('detail'); }} className="group bg-[#202025] border border-[#27272A] p-4 rounded-2xl hover:border-purple-500/50 cursor-pointer relative">
-                                <div className="flex justify-between items-start mb-3">
-                                    <div className="w-10 h-10 bg-purple-500/10 text-purple-400 rounded-lg flex items-center justify-center"><i className="fas fa-file-alt"></i></div>
-                                    <button onClick={(e) => handleDeleteReport(r.id, e)} className="text-gray-600 hover:text-red-500 p-2"><i className="fas fa-trash"></i></button>
+                        {getReportsForDate().length === 0 ? (
+                            <div className="col-span-full text-center py-20 text-gray-500">Bu tarihe ait rapor bulunamadı.</div>
+                        ) : (
+                            getReportsForDate().map(r => (
+                                <div key={r.id} onClick={() => { setActiveReport(r); setViewMode('detail'); }} className="group bg-[#202025] border border-[#27272A] p-4 rounded-2xl hover:border-purple-500/50 cursor-pointer relative">
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div className="w-10 h-10 bg-purple-500/10 text-purple-400 rounded-lg flex items-center justify-center"><i className="fas fa-file-alt"></i></div>
+                                        <button onClick={(e) => handleDeleteReport(r.id, e)} className="text-gray-600 hover:text-red-500 p-2 hover:bg-red-500/10 rounded-lg transition-colors"><i className="fas fa-trash"></i></button>
+                                    </div>
+                                    <h4 className="text-white font-bold text-sm truncate">{r.lesson}</h4>
+                                    <p className="text-gray-400 text-xs mt-1">{r.teacher_name}</p>
+                                    <p className="text-gray-500 text-xs mt-1 truncate">{r.topic}</p>
+                                    <div className="mt-3 flex gap-1">{[...Array(5)].map((_, i) => <i key={i} className={`fas fa-star text-[10px] ${i < r.rating ? 'text-yellow-500' : 'text-gray-800'}`}></i>)}</div>
                                 </div>
-                                <h4 className="text-white font-bold text-sm truncate">{r.lesson}</h4>
-                                <p className="text-gray-500 text-xs mt-1 truncate">{r.topic}</p>
-                                <div className="mt-3 flex gap-1">{[...Array(5)].map((_, i) => <i key={i} className={`fas fa-star text-[10px] ${i < r.rating ? 'text-yellow-500' : 'text-gray-800'}`}></i>)}</div>
-                            </div>
-                        ))}
+                            ))
+                        )}
                     </div>
                 </div>
             )}
@@ -600,6 +654,28 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
                                 <button onClick={() => setShowAddClassModal(false)} className="flex-1 bg-[#27272A] hover:bg-[#3F3F46] text-white font-bold py-3 rounded-xl transition-all">İptal</button>
                                 <button onClick={handleAddClass} className="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-xl transition-all">Ekle</button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* SINIF SİLME ONAY MODALI */}
+            {showDeleteClassModal && classToDelete && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4 animate-fade-in">
+                    <div className="bg-[#18181B] border border-red-500/30 w-full max-w-sm rounded-2xl shadow-2xl p-6">
+                        <div className="text-center mb-6">
+                            <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <i className="fas fa-exclamation-triangle text-red-400 text-2xl"></i>
+                            </div>
+                            <h3 className="text-white font-bold text-lg mb-2">Sınıfı Sil</h3>
+                            <p className="text-gray-400 text-sm">
+                                <strong className="text-white">{classToDelete.grade}-{classToDelete.branch}</strong> sınıfını silmek istediğinize emin misiniz?
+                            </p>
+                            <p className="text-red-400 text-xs mt-2">Bu işlem geri alınamaz!</p>
+                        </div>
+                        <div className="flex gap-2">
+                            <button onClick={() => { setShowDeleteClassModal(false); setClassToDelete(null); }} className="flex-1 bg-[#27272A] hover:bg-[#3F3F46] text-white font-bold py-3 rounded-xl transition-all">İptal</button>
+                            <button onClick={confirmDeleteClass} className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl transition-all">Sil</button>
                         </div>
                     </div>
                 </div>
@@ -1075,7 +1151,10 @@ const Dashboard: React.FC = () => {
         reader.readAsDataURL(file);
     };
 
-    if (role === 'principal') return <PrincipalDashboard weeklyReports={weeklyReports} onClassChange={fetchTeacherClasses} />;
+    if (role === 'principal') {
+        const institutionName = localStorage.getItem('institution_name') || 'Bilinmeyen Kurum';
+        return <PrincipalDashboard weeklyReports={weeklyReports} onClassChange={fetchTeacherClasses} institutionName={institutionName} />;
+    }
 
     return (
         <div className="h-full overflow-y-auto p-4 md:p-8 relative">
@@ -1346,6 +1425,7 @@ const Dashboard: React.FC = () => {
                     notes={notes}
                     onAssignOpen={(id, type, title) => { setAssignItem({ id, type, title }); setShowAssignModal(true); }}
                     onNoteClick={handleNoteClick}
+                    institutionName={localStorage.getItem('institution_name') || 'Bilinmeyen Kurum'}
                 />
             ) : (
                 <StudentDashboard

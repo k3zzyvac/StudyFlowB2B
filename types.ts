@@ -17,9 +17,10 @@ export interface Profile {
 
 export interface SchoolClass {
     id: string;
+    institution_id?: string;
     grade: string;
     branch: string;
-    created_at: string;
+    created_at?: string;
 }
 
 export interface Folder {
