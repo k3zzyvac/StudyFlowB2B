@@ -149,7 +149,7 @@ create table public.assignments (
   created_at timestamptz default now()
 );
 
--- ⚠️ 10. GÜVENLİK (RLS) - KURUMSAL İZOLASYON
+-- ⚠️ 10. GÜVENLİK (RLS) - KURUMSAL İZOLASYON (RECURSION FREE)
 alter table public.profiles enable row level security;
 alter table public.institutions enable row level security;
 alter table public.classes enable row level security;
@@ -159,17 +159,38 @@ alter table public.activity_logs enable row level security;
 alter table public.weekly_reports enable row level security;
 alter table public.assignments enable row level security;
 
+-- HELPER FUNCTIONS (To prevent infinite recursion)
+CREATE OR REPLACE FUNCTION public.get_my_institution_id()
+RETURNS uuid
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT institution_id FROM profiles WHERE user_id = auth.uid();
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_my_role()
+RETURNS text
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT role FROM profiles WHERE user_id = auth.uid();
+$$;
+
 -- Kurumlar: Herkes isimleri görebilir (kayıt/giriş için dropdown)
 create policy "Kurum İsimlerini Görme" on public.institutions for select using (true);
 
--- Profil Okuma: Kendi profilini veya aynı kurumdaki kişileri (öğretmen/müdür) görebilir
+-- Profil Okuma: Kendi profilini veya aynı kurumdaki yetkilileri görebilir
 create policy "Profil Okuma" on public.profiles
   for select using (
     auth.uid() = user_id OR 
-    (exists (
-      select 1 from public.profiles p 
-      where p.user_id = auth.uid() and p.role in ('teacher','principal') and p.institution_id = public.profiles.institution_id
-    ))
+    (
+      public.get_my_role() IN ('teacher', 'principal') AND 
+      public.get_my_institution_id() = institution_id
+    )
   );
 
 -- Profil Güncelleme: Sadece kendisi
@@ -186,8 +207,14 @@ create policy "Sınıf Görme (Herkes)" on public.classes
 
 create policy "Sınıf Yönetimi (Müdür)" on public.classes
   for all to authenticated
-  using (exists (select 1 from public.profiles p where p.user_id = auth.uid() and p.role = 'principal' and p.institution_id = public.classes.institution_id))
-  with check (exists (select 1 from public.profiles p where p.user_id = auth.uid() and p.role = 'principal' and p.institution_id = public.classes.institution_id));
+  using (
+    public.get_my_role() = 'principal' AND 
+    public.get_my_institution_id() = institution_id
+  )
+  with check (
+    public.get_my_role() = 'principal' AND 
+    public.get_my_institution_id() = institution_id
+  );
 
 -- Klasörler: Sadece sahibi
 create policy "Klasör Erişimi" on public.folders
@@ -197,7 +224,10 @@ create policy "Klasör Erişimi" on public.folders
 create policy "Not Okuma" on public.notes
   for select using (
     auth.uid() = user_id OR 
-    (is_public = true AND exists (select 1 from public.profiles p where p.user_id = auth.uid() and p.institution_id = public.notes.institution_id))
+    (
+      is_public = true AND 
+      public.get_my_institution_id() = institution_id
+    )
   );
 
 create policy "Not Yazma/Silme" on public.notes
@@ -210,28 +240,31 @@ create policy "Aktivite Erişimi" on public.activity_logs
 -- Haftalık Raporlar: Aynı kurumdaki öğretmen/müdürler
 create policy "Rapor Okuma" on public.weekly_reports
   for select using (
-    exists (select 1 from public.profiles p where p.user_id = auth.uid() and p.role in ('teacher','principal') and p.institution_id = public.weekly_reports.institution_id)
+    public.get_my_role() IN ('teacher', 'principal') AND 
+    public.get_my_institution_id() = institution_id
   );
 
 create policy "Rapor Yönetimi" on public.weekly_reports
   for all using (
-    exists (select 1 from public.profiles p where p.user_id = auth.uid() and p.role in ('teacher','principal') and p.institution_id = public.weekly_reports.institution_id)
-  ) with check (
-    exists (select 1 from public.profiles p where p.user_id = auth.uid() and p.role in ('teacher','principal') and p.institution_id = public.weekly_reports.institution_id)
+    public.get_my_role() IN ('teacher', 'principal') AND 
+    public.get_my_institution_id() = institution_id
   );
 
 -- Atamalar: İlgili öğrenci veya öğretmen
 create policy "Atama Okuma" on public.assignments
   for select using (
-    (auth.uid() = student_id OR auth.uid() = teacher_id) AND 
-    exists (select 1 from public.profiles p where p.user_id = auth.uid() and p.institution_id = public.assignments.institution_id)
+    (auth.uid() = student_id) OR
+    (auth.uid() = teacher_id) OR
+    (
+       public.get_my_institution_id() = institution_id AND
+       public.get_my_role() IN ('teacher', 'principal')
+    )
   );
 
 create policy "Atama Yönetimi (Öğretmen)" on public.assignments
   for all using (
-    exists (select 1 from public.profiles p where p.user_id = auth.uid() and p.role = 'teacher' and p.institution_id = public.assignments.institution_id)
-  ) with check (
-    exists (select 1 from public.profiles p where p.user_id = auth.uid() and p.role = 'teacher' and p.institution_id = public.assignments.institution_id)
+    public.get_my_role() = 'teacher' AND 
+    public.get_my_institution_id() = institution_id
   );
 
 -- ⚠️ 11. INDEXES (Performans)
@@ -253,8 +286,17 @@ security definer
 set search_path = public, auth
 as $$
 begin
-  insert into public.profiles (user_id, email, xp, level)
-  values (new.id, new.email, 0, 1);
+  insert into public.profiles (user_id, email, username, role, institution_id, class_id, xp, level)
+  values (
+    new.id, 
+    new.email, 
+    new.raw_user_meta_data->>'username',
+    COALESCE(new.raw_user_meta_data->>'role', 'student'),
+    (new.raw_user_meta_data->>'institution_id')::uuid,
+    (new.raw_user_meta_data->>'class_id')::uuid,
+    0, 
+    1
+  );
   return new;
 end;
 $$;

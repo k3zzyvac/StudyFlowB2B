@@ -33,7 +33,6 @@ const NoteRow: React.FC<{ note: Note, onClick: () => void, onShare: (e: any) => 
 // --- STUDENT COMPONENTS & LOGIC ---
 const StudentDashboard: React.FC<{
     notes: Note[],
-    weeklyActivity: number[],
     xp: number,
     level: number,
     nextLevelXp: number,
@@ -45,37 +44,35 @@ const StudentDashboard: React.FC<{
     fileInputRef: React.RefObject<HTMLInputElement>,
     assignments: any[],
     onAssignmentClick: (assignment: any) => void,
-    selectedClass: string,
-    onClassChange: (val: string) => void,
-    teacherClasses: SchoolClass[]
-}> = ({ notes, weeklyActivity, xp, level, nextLevelXp, onNoteClick, onDeleteNote, onShareNote, onNewNote, onUploadPdf, fileInputRef, assignments, onAssignmentClick, selectedClass, onClassChange, teacherClasses }) => {
+    institutionName: string,
+    classDisplay: string
+}> = ({ notes, xp, level, nextLevelXp, onNoteClick, onDeleteNote, onShareNote, onNewNote, onUploadPdf, fileInputRef, assignments, onAssignmentClick, institutionName, classDisplay }) => {
 
     const { t } = useLanguage();
-    const maxVal = Math.max(...weeklyActivity, 500);
 
     return (
         <div className="flex flex-col gap-6 pb-20">
-            <div className="flex flex-col gap-6 mb-10">
-                {/* VISUAL STATS CHART */}
-                <div className="bg-[#18181B] border border-[#27272A] rounded-2xl p-6 relative overflow-hidden group hover:border-purple-500/30 transition-colors">
-                    <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider"><i className="fas fa-chart-bar text-purple-500 mr-2"></i> Haftalık Aktivite (XP)</h3>
-                        <span className="text-xs bg-purple-500/10 text-purple-400 px-2 py-1 rounded font-bold">Son 7 Gün</span>
+            {/* ÖĞRENCİ BİLGİ HEADER */}
+            <div className="bg-gradient-to-r from-purple-900/20 to-indigo-900/20 border border-purple-500/20 rounded-2xl p-6">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 bg-purple-600 rounded-2xl flex items-center justify-center text-white text-2xl font-black">
+                            <i className="fas fa-user-graduate"></i>
+                        </div>
+                        <div>
+                            <h2 className="text-white font-bold text-lg">Öğrenci Paneli</h2>
+                            <p className="text-purple-400 text-sm font-medium">
+                                <i className="fas fa-building mr-2"></i>{institutionName}
+                            </p>
+                            <p className="text-gray-500 text-xs">
+                                <i className="fas fa-users mr-1"></i>Sınıf: <strong className="text-white">{classDisplay}</strong>
+                            </p>
+                        </div>
                     </div>
-                    <div className="flex items-end justify-between h-24 gap-2">
-                        {weeklyActivity.map((val, i) => {
-                            const heightPercent = maxVal > 0 ? (val / maxVal) * 100 : 0;
-                            return (
-                                <div key={i} className="flex-1 flex flex-col items-center gap-2 group/bar">
-                                    <div className="w-full bg-[#27272A] rounded-t-lg relative overflow-hidden h-full flex items-end">
-                                        <div className="w-full bg-purple-600 rounded-t-lg transition-all duration-1000 group-hover/bar:bg-purple-400 relative" style={{ height: `${Math.max(5, heightPercent)}%` }}>
-                                            {val > 0 && <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-white opacity-0 group-hover/bar:opacity-100 transition-opacity bg-black px-1 rounded">{val}</span>}
-                                        </div>
-                                    </div>
-                                    <span className="text-[10px] text-gray-500 font-bold">{['Pt', 'Sa', 'Ça', 'Pe', 'Cu', 'Ct', 'Pa'][i]}</span>
-                                </div>
-                            )
-                        })}
+                    <div className="text-right">
+                        <div className="text-3xl font-black text-purple-400">{xp}</div>
+                        <div className="text-[10px] text-gray-500 uppercase tracking-wider">Toplam XP</div>
+                        <div className="text-xs text-gray-400 mt-1">Seviye {level}</div>
                     </div>
                 </div>
             </div>
@@ -83,8 +80,7 @@ const StudentDashboard: React.FC<{
             <input type="file" ref={fileInputRef} onChange={onUploadPdf} accept="application/pdf" className="hidden" />
 
             {/* ACTION CARDS ROW */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                {/* NEW NOTE BUTTON - MAIN PLACE */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <button onClick={onNewNote} className="group flex flex-col items-center justify-center gap-2 p-5 bg-white text-black rounded-2xl transition-all hover:scale-105 shadow-xl shadow-white/5 relative overflow-hidden">
                     <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-white opacity-50"></div>
                     <div className="w-12 h-12 rounded-full bg-black/5 flex items-center justify-center text-2xl relative z-10 group-hover:bg-black/10 transition-colors"><i className="fas fa-plus"></i></div>
@@ -110,37 +106,17 @@ const StudentDashboard: React.FC<{
                 </button>
             </div>
 
-            {/* SINIF SEÇİCİ (DEMO MODU İÇİN) */}
-            <div className="bg-[#18181B] border border-[#27272A] rounded-2xl p-4 mb-4">
-                <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-2">
-                        <i className="fas fa-users text-purple-500"></i>
-                        <span className="text-sm font-bold text-gray-300">Sınıfını Seç (Demo):</span>
-                    </div>
-                    <select
-                        value={selectedClass}
-                        onChange={(e) => onClassChange(e.target.value)}
-                        className="bg-[#0F0F12] border border-[#27272A] rounded-xl px-4 py-2 text-white text-sm outline-none focus:border-purple-500 transition-colors"
-                    >
-                        <option value="">Sınıf Seçiniz</option>
-                        {teacherClasses.map(c => (
-                            <option key={c.id} value={`${c.grade}-${c.branch}`}>{c.grade}-{c.branch}</option>
-                        ))}
-                    </select>
-                </div>
-            </div>
-
-            {/* ATANAN ÖDEVLER VE NOTLAR */}
-            <div className="flex items-center justify-between mb-4 px-2">
+            {/* ATANAN ÖDEVLER VE NOTLAR - Sadece öğrencinin sınıfına atananlar */}
+            <div className="flex items-center justify-between mb-2 px-2">
                 <h2 className="text-gray-400 font-bold text-xs uppercase tracking-widest">Atanan Ödevler & Notlar</h2>
-                <span className="text-gray-600 text-xs font-mono">{assignments.filter(asgn => !selectedClass || asgn.class_id === selectedClass).length} Yeni</span>
+                <span className="text-gray-600 text-xs font-mono">{assignments.filter(a => a.class_id === classDisplay).length} Yeni</span>
             </div>
 
             <div className="flex flex-col space-y-2 mb-8">
-                {assignments.filter(asgn => !selectedClass || asgn.class_id === selectedClass).length === 0 ? (
+                {assignments.filter(a => a.class_id === classDisplay).length === 0 ? (
                     <div className="py-4 text-center border border-dashed border-[#27272A] rounded-xl text-gray-600 text-xs">Henüz atanmış bir şey yok.</div>
                 ) : (
-                    assignments.filter(asgn => !selectedClass || asgn.class_id === selectedClass).map((asgn: any) => (
+                    assignments.filter(a => a.class_id === classDisplay).map((asgn: any) => (
                         <div key={asgn.id} className="flex items-center justify-between p-4 bg-gradient-to-r from-purple-900/10 to-transparent border border-purple-500/20 rounded-xl">
                             <div className="flex items-center gap-4">
                                 <div className="w-8 h-8 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center">
@@ -325,44 +301,54 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
     }, [initialReports, institutionName]);
 
     const fetchClasses = async () => {
-        // Kuruma özel sınıfları localStorage'dan çek
-        const storageKey = `classes_${institutionName.replace(/\s/g, '_')}`;
-        const localClasses = JSON.parse(localStorage.getItem(storageKey) || '[]');
-        
-        if (localClasses.length > 0) {
-            setClassList(localClasses);
-            return;
+        try {
+            // Get institution ID either from PC helper (via RLS) or localStorage if needed for filtering
+            const instId = localStorage.getItem('institution_id');
+
+            if (!instId || instId.trim() === '') return;
+
+            // Supabase'den çek
+            const { data, error } = await supabase
+                .from('classes')
+                .select('*')
+                .eq('institution_id', instId) // RLS de bunu yapıyor ama extra güvenlik
+                .order('grade', { ascending: true })
+                .order('branch', { ascending: true });
+
+            if (error) throw error;
+
+            if (data) {
+                setClassList(data as SchoolClass[]);
+            }
+        } catch (error) {
+            console.error('Sınıf çekme hatası:', error);
+            toast.error('Sınıflar yüklenirken hata oluştu');
         }
-        
-        // Yoksa varsayılan sınıfları oluştur
-        const defaultClasses: SchoolClass[] = [
-            { id: `${institutionName}-9a`, institution_id: institutionName, grade: '9', branch: 'A' },
-            { id: `${institutionName}-9b`, institution_id: institutionName, grade: '9', branch: 'B' },
-            { id: `${institutionName}-10a`, institution_id: institutionName, grade: '10', branch: 'A' },
-            { id: `${institutionName}-11a`, institution_id: institutionName, grade: '11', branch: 'A' },
-            { id: `${institutionName}-12a`, institution_id: institutionName, grade: '12', branch: 'A' },
-        ];
-        localStorage.setItem(storageKey, JSON.stringify(defaultClasses));
-        setClassList(defaultClasses);
     };
 
-    const handleAddClass = () => {
-        const storageKey = `classes_${institutionName.replace(/\s/g, '_')}`;
-        const newClass: SchoolClass = {
-            id: `${institutionName}-${newClassGrade}${newClassBranch.toLowerCase()}-${Date.now()}`,
-            institution_id: institutionName,
-            grade: newClassGrade,
-            branch: newClassBranch.toUpperCase()
-        };
-        
-        const updatedClasses = [...classList, newClass];
-        localStorage.setItem(storageKey, JSON.stringify(updatedClasses));
-        setClassList(updatedClasses);
-        
-        toast.success(`${newClassGrade}-${newClassBranch.toUpperCase()} sınıfı eklendi`);
-        setShowAddClassModal(false);
-        setNewClassGrade('9');
-        setNewClassBranch('A');
+    const handleAddClass = async () => {
+        const instId = localStorage.getItem('institution_id');
+
+        try {
+            const { data, error } = await supabase.from('classes').insert([{
+                institution_id: instId,
+                grade: newClassGrade,
+                branch: newClassBranch.toUpperCase()
+            }]).select().single();
+
+            if (error) throw error;
+
+            if (data) {
+                setClassList([...classList, data as SchoolClass]);
+                toast.success(`${newClassGrade}-${newClassBranch.toUpperCase()} sınıfı eklendi`);
+                setShowAddClassModal(false);
+                setNewClassGrade('9');
+                setNewClassBranch('A');
+            }
+        } catch (error) {
+            console.error('Sınıf ekleme hatası:', error);
+            toast.error('Sınıf eklenirken hata oluştu');
+        }
     };
 
     const handleDeleteClass = (cls: SchoolClass) => {
@@ -370,33 +356,47 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
         setShowDeleteClassModal(true);
     };
 
-    const confirmDeleteClass = () => {
+    const confirmDeleteClass = async () => {
         if (!classToDelete) return;
-        
-        const storageKey = `classes_${institutionName.replace(/\s/g, '_')}`;
-        const updatedClasses = classList.filter(c => c.id !== classToDelete.id);
-        localStorage.setItem(storageKey, JSON.stringify(updatedClasses));
-        setClassList(updatedClasses);
-        
-        toast.success(`${classToDelete.grade}-${classToDelete.branch} sınıfı silindi`);
-        setShowDeleteClassModal(false);
-        setClassToDelete(null);
+
+        try {
+            const { error } = await supabase.from('classes').delete().eq('id', classToDelete.id);
+
+            if (error) throw error;
+
+            const updatedClasses = classList.filter(c => c.id !== classToDelete.id);
+            setClassList(updatedClasses);
+
+            toast.success(`${classToDelete.grade}-${classToDelete.branch} sınıfı silindi`);
+            setShowDeleteClassModal(false);
+            setClassToDelete(null);
+        } catch (error) {
+            console.error('Sınıf silme hatası:', error);
+            toast.error('Sınıf silinirken hata oluştu');
+        }
     };
 
-    const handleDeleteReport = (id: string, e: React.MouseEvent) => {
+    const handleDeleteReport = async (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
         if (!confirm("Bu raporu silmek istediğinize emin misiniz?")) return;
-        
-        const storageKey = `reports_${institutionName.replace(/\s/g, '_')}`;
-        const updated = reports.filter(r => r.id !== id);
-        setReports(updated);
-        localStorage.setItem(storageKey, JSON.stringify(updated));
-        
-        // Global storage da güncelle
-        localStorage.setItem('mock_weekly_reports', JSON.stringify(updated));
-        
-        toast.success("Rapor başarıyla silindi");
-        if (activeReport?.id === id) setViewMode('reports');
+
+        try {
+            const { error } = await supabase.from('weekly_reports').delete().eq('id', id);
+
+            if (error) throw error;
+
+            const updated = reports.filter(r => r.id !== id);
+            setReports(updated);
+
+            // Parent'a da bildirmek gerekebilir ama şimdilik local state yetsin
+            // Gerçek zamanlı güncellemeyi parent dashboard yapmalı
+
+            toast.success("Rapor başarıyla silindi");
+            if (activeReport?.id === id) setViewMode('reports');
+        } catch (error) {
+            console.error('Rapor silme hatası:', error);
+            toast.error('Rapor silinirken hata oluştu');
+        }
     };
 
     // Günlük raporlar - tarihe göre grupla
@@ -742,7 +742,12 @@ const Dashboard: React.FC = () => {
                 await fetchTeacherClasses();
                 // Demo modda localStorage'dan atamaları çek
                 const localAssignments = JSON.parse(localStorage.getItem('mock_assignments') || '[]');
-                setAssignments(localAssignments);
+                const currentInstId = localStorage.getItem('institution_id');
+                const filteredAssignments = localAssignments.filter((a: any) =>
+                    // Eğer assignment'da kurum ID varsa eşleşmeli, yoksa (eski veri) göster veya gizle (güvenlik için gizle)
+                    a.institution_id ? a.institution_id === currentInstId : true
+                );
+                setAssignments(filteredAssignments);
             }
             // Load weekly reports
             loadWeeklyReports();
@@ -752,54 +757,129 @@ const Dashboard: React.FC = () => {
 
     const loadWeeklyReports = async () => {
         try {
-            // Önce Supabase'den çekmeyi dene
-            const { data, error } = await supabase.from('weekly_reports').select('*').order('date', { ascending: false });
+            // Get institution ID just in case needed, but RLS handles filtering
+            const instId = localStorage.getItem('institution_id');
 
-            if (!error && data && data.length > 0) {
-                setWeeklyReports(data);
-                localStorage.setItem('mock_weekly_reports', JSON.stringify(data));
+            if (!instId || instId.trim() === '') {
+                // Try simple recovery or abort
+                console.warn('Institution ID missing for reports');
                 return;
             }
 
-            // Supabase boşsa veya hata verdiyse local'e bak
-            const reports = localStorage.getItem('mock_weekly_reports');
-            const parsedReports = reports ? JSON.parse(reports) : [];
-            setWeeklyReports(parsedReports);
+            const { data, error } = await supabase
+                .from('weekly_reports')
+                .select('*')
+                .eq('institution_id', instId) // RLS handles this, but explicit check is safer
+                .order('date', { ascending: false });
 
-            // Hala boşsa örnek veri oluştur
-            if (parsedReports.length === 0) {
-                generateSampleReports();
+            if (error) throw error;
+
+            if (data) {
+                setWeeklyReports(data);
             }
         } catch (error) {
             console.error('Error loading weekly reports:', error);
-            setWeeklyReports([]);
+            toast.error('Raporlar yüklenemedi');
         }
     };
 
     const fetchTeacherClasses = async () => {
-        console.log('[Öğretmen Paneli] Sınıflar çekiliyor...');
+        const instId = localStorage.getItem('institution_id');
+        const role = localStorage.getItem('user_role');
+
+        // Sadece Öğretmen ve Müdür sınıf listesini görmeli (Müdür ekler, Öğretmen seçer)
+        if (role === 'student') return;
+
+        console.log('[Dashboard] Sınıflar çekiliyor. Kurum:', instId);
+
         try {
+            // DEMO/LOCAL MODE
+            if (instId && instId.startsWith('demo-')) {
+                // Kuruma özel mock sınıflar
+                const storageKey = `classes_${localStorage.getItem('institution_name')?.replace(/\s/g, '_')}`;
+
+                // Önce localStorage'daki güncel listeye bak (Müdür eklemiş olabilir)
+                const localStored = JSON.parse(localStorage.getItem(storageKey) || '[]');
+
+                if (localStored.length > 0) {
+                    setTeacherClasses(localStored);
+                } else {
+                    // Hiç yoksa varsayılanları oluştur
+                    const institutionName = localStorage.getItem('institution_name') || 'Demo Kurum';
+                    const defaultClasses: SchoolClass[] = [
+                        { id: `${institutionName}-9a`, institution_id: instId, grade: '9', branch: 'A' },
+                        { id: `${institutionName}-9b`, institution_id: instId, grade: '9', branch: 'B' },
+                        { id: `${institutionName}-10a`, institution_id: instId, grade: '10', branch: 'A' },
+                        { id: `${institutionName}-11a`, institution_id: instId, grade: '11', branch: 'A' },
+                        { id: `${institutionName}-12a`, institution_id: instId, grade: '12', branch: 'A' },
+                    ];
+                    // Bunları kaydet ki müdür görebilsin
+                    localStorage.setItem(storageKey, JSON.stringify(defaultClasses));
+                    setTeacherClasses(defaultClasses);
+                }
+
+                if (!selectedClass && teacherClasses.length > 0) {
+                    setSelectedClass(`${teacherClasses[0].grade}-${teacherClasses[0].branch}`);
+                }
+                return;
+            }
+
+            // REAL SUPABASE MODE
+            if (!instId || instId.trim() === '') {
+                // If no institution ID is found, we can try to fetch it from the user profile as a fallback
+                // or just return empty to prevent the "invalid input syntax" error.
+                // Let's try to get it from the session/profile if possible, otherwise abort.
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    const { data: profile } = await supabase
+                        .from('profiles')
+                        .select('institution_id')
+                        .eq('user_id', user.id)
+                        .single();
+
+                    if (profile && profile.institution_id) {
+                        // Found it! Use this ID and update local storage
+                        localStorage.setItem('institution_id', profile.institution_id);
+                        // Continue query with NEW found ID
+                        const { data, error } = await supabase
+                            .from('classes')
+                            .select('*')
+                            .eq('institution_id', profile.institution_id)
+                            .order('grade', { ascending: true })
+                            .order('branch', { ascending: true });
+                        if (!error && data) {
+                            const list = data as SchoolClass[];
+                            setTeacherClasses(list);
+                            if (!selectedClass && list.length > 0) setSelectedClass(`${list[0].grade}-${list[0].branch}`);
+                            return;
+                        }
+                    }
+                }
+
+                console.warn('[Dashboard] Sınıf çekme: Institution ID hatası (boş)');
+                setTeacherClasses([]);
+                return;
+            }
+
             const { data, error } = await supabase
                 .from('classes')
                 .select('*')
+                .eq('institution_id', instId) // Sadece bu kurumun sınıfları
                 .order('grade', { ascending: true })
                 .order('branch', { ascending: true });
 
-            console.log('[Öğretmen Paneli] Supabase response:', { data, error });
-
-            if (!error && data && data.length > 0) {
+            if (!error && data) {
                 const list = data as SchoolClass[];
                 setTeacherClasses(list);
-                console.log('[Öğretmen Paneli] Sınıflar yüklendi:', list.length);
                 if (!selectedClass && list.length > 0) {
                     setSelectedClass(`${list[0].grade}-${list[0].branch}`);
                 }
             } else {
-                console.warn('[Öğretmen Paneli] Sınıf bulunamadı veya hata:', error);
+                console.warn('[Dashboard] Sınıf çekme hatası:', error);
                 setTeacherClasses([]);
             }
         } catch (e) {
-            console.error('[Öğretmen Paneli] Fetch hatası:', e);
+            console.error('[Dashboard] Fetch hatası:', e);
             setTeacherClasses([]);
         }
     };
@@ -879,32 +959,30 @@ const Dashboard: React.FC = () => {
     };
 
     const addWeeklyReport = async (report: Omit<WeeklyReport, 'id' | 'date'> & { date?: string }) => {
+        const instId = localStorage.getItem('institution_id');
         const timestamp = new Date().toISOString().split('T')[0];
+
         const newReport: any = {
             ...report,
-            date: report.date || timestamp
+            date: report.date || timestamp,
+            institution_id: instId
         };
 
         try {
-            // ID'yi gönderme, Supabase/Postgres UUID olarak otomatik atasın
             const { data, error } = await supabase.from('weekly_reports').insert([newReport]).select();
+
             if (error) throw error;
 
             const savedReport = data[0];
-            const updatedReports = [...weeklyReports, savedReport];
+            const updatedReports = [savedReport, ...weeklyReports]; // Newest first
             setWeeklyReports(updatedReports);
-            localStorage.setItem('mock_weekly_reports', JSON.stringify(updatedReports));
 
             toast.success('Rapor başarıyla kaydedildi');
             return savedReport;
         } catch (e) {
             console.error("Rapor kaydetme hatası:", e);
-            // Local fallback logic
-            const localReport = { ...newReport, id: 'temp_' + Date.now() };
-            const updatedReports = [...weeklyReports, localReport];
-            setWeeklyReports(updatedReports);
-            localStorage.setItem('mock_weekly_reports', JSON.stringify(updatedReports));
-            return localReport;
+            toast.error('Rapor kaydedilirken hata oluştu');
+            return null;
         }
     };
 
@@ -966,20 +1044,24 @@ const Dashboard: React.FC = () => {
     const handleHandleAssign = async (class_id: string) => {
         if (!assignItem) return;
 
-        const isDemoMode = localStorage.getItem('is-guest') === 'true';
-
         try {
-            if (isDemoMode) {
-                // Demo mod: localStorage'a kaydet
+            const instId = localStorage.getItem('institution_id');
+            const isStaff = localStorage.getItem('staff_authenticated') === 'true';
+
+            // LOCAL/DEMO MODE ASSIGNMENT
+            if (instId && instId.startsWith('demo-')) {
                 const localAssignments = JSON.parse(localStorage.getItem('mock_assignments') || '[]');
+
                 const newAssignment = {
                     id: 'demo_' + Date.now(),
-                    content_id: assignItem.id, // ÖNEMLİ: Notun veya sınavın kendi ID'si
+                    content_id: assignItem.id,
                     title: assignItem.title,
                     type: assignItem.type,
                     class_id: class_id,
+                    institution_id: instId,
                     created_at: new Date().toISOString()
                 };
+
                 localAssignments.push(newAssignment);
                 localStorage.setItem('mock_assignments', JSON.stringify(localAssignments));
                 setAssignments(localAssignments);
@@ -990,15 +1072,18 @@ const Dashboard: React.FC = () => {
                 return;
             }
 
+            // REAL MODE (Supabase)
             const { data: { user } } = await supabase.auth.getUser();
+
             if (!user) {
-                toast.error('Lütfen giriş yapın');
+                toast.error('Oturum süreniz dolmuş olabilir.');
                 return;
             }
 
             const assignment = {
                 teacher_id: user.id,
-                student_id: user.id, // Demo: şimdilik kendine ata
+                institution_id: instId,
+                class_id: class_id,
                 title: assignItem.title,
                 type: assignItem.type,
                 due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -1014,12 +1099,19 @@ const Dashboard: React.FC = () => {
             setAssignItem(null);
         } catch (e) {
             console.error("Atama hatası:", e);
-            toast.error('Atama sırasında bir hata oluştu');
+            toast.error('Atama sırasında bir hata oluştu. Demo moduna geçiliyor.');
 
-            // Local fallback logic
+            // Fallback
             const localAssignments = JSON.parse(localStorage.getItem('mock_assignments') || '[]');
-            localAssignments.push({ id: 'mock_' + Date.now(), title: assignItem.title, type: assignItem.type, class_id });
+            localAssignments.push({
+                id: 'mock_' + Date.now(),
+                title: assignItem.title,
+                type: assignItem.type,
+                class_id: class_id,
+                institution_id: localStorage.getItem('institution_id')
+            });
             localStorage.setItem('mock_assignments', JSON.stringify(localAssignments));
+            setShowAssignModal(false);
         }
     };
     const fetchNotes = async (userId: string) => {
@@ -1086,7 +1178,15 @@ const Dashboard: React.FC = () => {
                     localStorage.setItem('guest_notes', JSON.stringify(local));
                     setNotes(local);
                 } else {
-                    await supabase.from('notes').insert([{ id: newId, user_id: user.id, title: aiTopic, body_html: html, type: 'normal' }]);
+                    const instId = localStorage.getItem('institution_id');
+                    await supabase.from('notes').insert([{
+                        id: newId,
+                        user_id: user.id,
+                        title: aiTopic,
+                        body_html: html,
+                        type: 'normal',
+                        institution_id: instId
+                    }]);
                 }
 
                 // Öğretmen ise atama modalı aç
@@ -1417,7 +1517,13 @@ const Dashboard: React.FC = () => {
                 </div>
             )}
 
-            {role === 'teacher' ? (
+            {(role as string) === 'principal' ? (
+                <PrincipalDashboard
+                    weeklyReports={weeklyReports}
+                    onClassChange={() => { }}
+                    institutionName={localStorage.getItem('institution_name') || 'Kurum'}
+                />
+            ) : role === 'teacher' ? (
                 <TeacherDashboard
                     onAiNoteGen={handleNewNote}
                     onExamGen={() => navigate('/exam')}
@@ -1430,7 +1536,6 @@ const Dashboard: React.FC = () => {
             ) : (
                 <StudentDashboard
                     notes={notes}
-                    weeklyActivity={weeklyActivity}
                     xp={xp}
                     level={level}
                     nextLevelXp={nextLevelXp}
@@ -1442,9 +1547,8 @@ const Dashboard: React.FC = () => {
                     fileInputRef={fileInputRef}
                     assignments={assignments}
                     onAssignmentClick={handleAssignmentClick}
-                    selectedClass={selectedClass}
-                    onClassChange={setSelectedClass}
-                    teacherClasses={teacherClasses}
+                    institutionName={localStorage.getItem('institution_name') || 'Bilinmeyen Kurum'}
+                    classDisplay={localStorage.getItem('class_display') || 'Sınıf Belirlenmedi'}
                 />
             )}
         </div>

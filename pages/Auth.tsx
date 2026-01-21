@@ -108,6 +108,10 @@ const Auth: React.FC = () => {
                     { id: 'class-11a', institution_id: institutionId, grade: '11', branch: 'A' },
                     { id: 'class-12a', institution_id: institutionId, grade: '12', branch: 'A' },
                 ];
+                // Check local storage for any Principal-added demo classes
+                const storageKey = `classes_${institutionId.replace('demo-', '').replace(/-/g, '_').toUpperCase()}_KURUMLARI`.replace(/\s/g, '_');
+                // Note: The storage key format in Dashboard is simpler, trying to match it best effort or just stick to defaults for demo auth
+
                 setClasses(mockClasses);
                 return;
             }
@@ -117,7 +121,7 @@ const Auth: React.FC = () => {
                 .select('*')
                 .eq('institution_id', institutionId)
                 .order('grade', { ascending: true });
-            
+
             if (error) {
                 console.warn('Sınıflar çekilemedi:', error);
                 setClasses([]);
@@ -133,83 +137,107 @@ const Auth: React.FC = () => {
     // ÖĞRENCİ KAYIT
     const handleStudentRegister = async () => {
         // Validasyonlar - Türkçe mesajlar
-        if (!username.trim()) {
-            setError('Kullanıcı adı boş bırakılamaz. Lütfen bir kullanıcı adı girin.');
-            return;
-        }
-        if (username.trim().length < 3) {
-            setError('Kullanıcı adı en az 3 karakter olmalıdır.');
-            return;
-        }
-        if (!selectedInstitutionId) {
-            setError('Lütfen eğitim kurumunuzu seçin.');
-            return;
-        }
-        if (!selectedClassId) {
-            setError('Lütfen sınıfınızı seçin.');
-            return;
-        }
-        if (!password) {
-            setError('Şifre boş bırakılamaz.');
-            return;
-        }
-        if (password.length < 6) {
-            setError('Şifre en az 6 karakter olmalıdır.');
-            return;
-        }
+        if (!username.trim()) { setError('Kullanıcı adı boş bırakılamaz.'); return; }
+        if (username.trim().length < 3) { setError('Kullanıcı adı en az 3 karakter olmalıdır.'); return; }
+        if (!selectedInstitutionId) { setError('Lütfen eğitim kurumunuzu seçin.'); return; }
+        if (!selectedClassId) { setError('Lütfen sınıfınızı seçin.'); return; }
+        if (!password) { setError('Şifre boş bırakılamaz.'); return; }
+        if (password.length < 6) { setError('Şifre en az 6 karakter olmalıdır.'); return; }
 
         setLoading(true);
         setError(null);
 
         try {
-            // Kurum adını bul
             const institution = institutions.find(i => i.id === selectedInstitutionId);
             const institutionName = institution?.name || 'Bilinmeyen Kurum';
-
-            // Sınıf bilgisini bul
             const selectedClass = classes.find(c => c.id === selectedClassId);
             const classDisplay = selectedClass ? `${selectedClass.grade}-${selectedClass.branch}` : '';
 
-            // localStorage'a kaydet (Demo mod için)
-            const studentData = {
-                username: username.trim().toLowerCase(),
-                password: password,
-                institutionId: selectedInstitutionId,
-                institutionName: institutionName,
-                classId: selectedClassId,
-                classDisplay: classDisplay,
-                role: 'student',
-                createdAt: new Date().toISOString()
-            };
+            // DEMO REGISTRATION (LocalStorage)
+            if (selectedInstitutionId.startsWith('demo-')) {
+                const studentData = {
+                    username: username.trim().toLowerCase(),
+                    password: password,
+                    institutionId: selectedInstitutionId,
+                    institutionName: institutionName,
+                    classId: selectedClassId,
+                    classDisplay: classDisplay,
+                    role: 'student',
+                    createdAt: new Date().toISOString()
+                };
 
-            // Mevcut öğrencileri al
-            const existingStudents = JSON.parse(localStorage.getItem('registered_students') || '[]');
-            
-            // Aynı kullanıcı adı + kurum + sınıf kombinasyonu var mı kontrol et
-            const alreadyExists = existingStudents.find((s: any) => 
-                s.username === studentData.username && 
-                s.institutionId === studentData.institutionId &&
-                s.classId === studentData.classId
-            );
+                const existingStudents = JSON.parse(localStorage.getItem('registered_students') || '[]');
+                const alreadyExists = existingStudents.find((s: any) =>
+                    s.username === studentData.username &&
+                    s.institutionId === studentData.institutionId
+                );
 
-            if (alreadyExists) {
-                setError('Bu kullanıcı adı bu kurum ve sınıfta zaten kayıtlı. Farklı bir kullanıcı adı deneyin.');
-                setLoading(false);
+                if (alreadyExists) {
+                    setError('Bu kullanıcı adı bu kurumda zaten kayıtlı.');
+                    setLoading(false);
+                    return;
+                }
+
+                existingStudents.push(studentData);
+                localStorage.setItem('registered_students', JSON.stringify(existingStudents));
+
+                alert(`Demo Kayıt Başarılı! \nKullanıcı: ${username}`);
+                setIsLogin(true);
+                setUsername(''); setPassword('');
                 return;
             }
 
-            // Yeni öğrenciyi ekle
-            existingStudents.push(studentData);
-            localStorage.setItem('registered_students', JSON.stringify(existingStudents));
+            // REAL REGISTRATION (Supabase)
+            // 1. Sign up user
+            const normalizeString = (str: string) => {
+                return str.toLowerCase()
+                    .replace(/ğ/g, 'g')
+                    .replace(/ü/g, 'u')
+                    .replace(/ş/g, 's')
+                    .replace(/ı/g, 'i')
+                    .replace(/i̇/g, 'i')
+                    .replace(/ö/g, 'o')
+                    .replace(/ç/g, 'c')
+                    .replace(/[^a-z0-9]/g, '_');
+            };
 
-            alert(`Kayıt başarılı! 🎉\n\nKullanıcı Adı: ${username}\nKurum: ${institutionName}\nSınıf: ${classDisplay}\n\nŞimdi bu bilgilerle giriş yapabilirsin.`);
-            setIsLogin(true);
-            // Formu temizleme - şifre hariç (kolaylık için)
-            setUsername('');
-            setPassword('');
+            const email = `${normalizeString(username.trim())}@studyflow.com`;
+            const { data: authData, error: authError } = await supabase.auth.signUp({
+                email: email,
+                password: password,
+                options: {
+                    data: {
+                        username: username.trim(),
+                        role: 'student',
+                        institution_id: selectedInstitutionId,
+                        class_id: selectedClassId
+                    }
+                }
+            });
+
+            if (authError) {
+                if (authError.status === 429) {
+                    setError('Çok fazla deneme yaptınız. Lütfen 30 saniye bekleyip tekrar deneyin.');
+                    return;
+                }
+                throw authError;
+            }
+
+            // 2. Profile creation is handled by DB trigger (handle_new_user)
+
+            if (authData.user) {
+                alert('Kayıt Başarılı! \n\nHesabınız oluşturuldu ve otomatik onaylandı. Giriş yapabilirsiniz.');
+                setIsLogin(true);
+                setUsername(''); setPassword('');
+            } else {
+                // Sometimes auto-confirm acts weird, user is created but session null
+                alert('Kayıt isteği alındı. Lütfen giriş yapmayı deneyin.');
+                setIsLogin(true);
+            }
+
         } catch (err: any) {
-            setError('Kayıt sırasında beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.');
             console.error('Kayıt hatası:', err);
+            setError(err.message || 'Kayıt sırasında hata oluştu.');
         } finally {
             setLoading(false);
         }
@@ -217,68 +245,110 @@ const Auth: React.FC = () => {
 
     // ÖĞRENCİ GİRİŞ
     const handleStudentLogin = async () => {
-        // Validasyonlar
-        if (!username.trim()) {
-            setError('Kullanıcı adı boş bırakılamaz.');
-            return;
-        }
-        if (!selectedInstitutionId) {
-            setError('Lütfen eğitim kurumunuzu seçin.');
-            return;
-        }
-        if (!selectedClassId) {
-            setError('Lütfen sınıfınızı seçin.');
-            return;
-        }
-        if (!password) {
-            setError('Şifre boş bırakılamaz.');
-            return;
-        }
+        if (!username.trim()) { setError('Kullanıcı adı boş bırakılamaz.'); return; }
+        if (!selectedInstitutionId) { setError('Lütfen eğitim kurumunuzu seçin.'); return; }
+        if (!selectedClassId) { setError('Lütfen sınıfınızı seçin.'); return; }
+        if (!password) { setError('Şifre boş bırakılamaz.'); return; }
 
         setLoading(true);
         setError(null);
 
         try {
-            // localStorage'dan kayıtlı öğrencileri al
-            const registeredStudents = JSON.parse(localStorage.getItem('registered_students') || '[]');
+            // DEMO LOGIN
+            if (selectedInstitutionId.startsWith('demo-')) {
+                const registeredStudents = JSON.parse(localStorage.getItem('registered_students') || '[]');
+                const matchedStudent = registeredStudents.find((s: any) =>
+                    s.username === username.trim().toLowerCase() &&
+                    s.institutionId === selectedInstitutionId &&
+                    s.classId === selectedClassId &&
+                    s.password === password
+                );
 
-            // Kullanıcıyı bul - TÜM BİLGİLER %100 EŞLEŞMELİ
-            const matchedStudent = registeredStudents.find((s: any) => 
-                s.username === username.trim().toLowerCase() && 
-                s.institutionId === selectedInstitutionId &&
-                s.classId === selectedClassId &&
-                s.password === password
-            );
-
-            if (!matchedStudent) {
-                // Hangi alanın yanlış olduğunu bulmaya çalış
-                const usernameMatch = registeredStudents.find((s: any) => s.username === username.trim().toLowerCase());
-                
-                if (!usernameMatch) {
-                    setError('Bu kullanıcı adı ile kayıtlı bir hesap bulunamadı. Önce kayıt olmanız gerekiyor.');
-                } else if (usernameMatch.institutionId !== selectedInstitutionId) {
-                    setError('Seçtiğiniz kurum kayıt olduğunuz kurumla eşleşmiyor.');
-                } else if (usernameMatch.classId !== selectedClassId) {
-                    setError('Seçtiğiniz sınıf kayıt olduğunuz sınıfla eşleşmiyor.');
-                } else if (usernameMatch.password !== password) {
-                    setError('Şifre hatalı. Lütfen kayıt olurken belirlediğiniz şifreyi girin.');
-                } else {
-                    setError('Giriş bilgileri hatalı. Lütfen tüm alanları kontrol edin.');
+                if (!matchedStudent) {
+                    setError('Giriş bilgileri hatalı veya demo hesabı bulunamadı.');
+                    setLoading(false);
+                    return;
                 }
+
+                localStorage.setItem('user_role', 'student');
+                localStorage.setItem('institution_id', matchedStudent.institutionId);
+                localStorage.setItem('institution_name', matchedStudent.institutionName);
+                localStorage.setItem('class_id', matchedStudent.classId);
+                localStorage.setItem('class_display', matchedStudent.classDisplay);
+                localStorage.setItem('current_username', matchedStudent.username);
+                localStorage.setItem('student_authenticated', 'true');
+
+                navigate('/');
+                return;
+            }
+
+            // REAL LOGIN (Supabase)
+            // Normalization helper (can be moved to utils if reused)
+            const normalizeString = (str: string) => {
+                return str.toLowerCase()
+                    .replace(/ğ/g, 'g')
+                    .replace(/ü/g, 'u')
+                    .replace(/ş/g, 's')
+                    .replace(/ı/g, 'i')
+                    .replace(/i̇/g, 'i')
+                    .replace(/ö/g, 'o')
+                    .replace(/ç/g, 'c')
+                    .replace(/[^a-z0-9]/g, '_');
+            };
+
+            const email = `${normalizeString(username.trim())}@studyflow.com`;
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: email,
+                password: password
+            });
+
+            if (error) {
+                setError('Giriş başarısız. Kullanıcı adı veya şifre hatalı.');
                 setLoading(false);
                 return;
             }
 
-            // Başarılı giriş
-            localStorage.setItem('user_role', 'student');
-            localStorage.setItem('institution_id', matchedStudent.institutionId);
-            localStorage.setItem('institution_name', matchedStudent.institutionName);
-            localStorage.setItem('class_id', matchedStudent.classId);
-            localStorage.setItem('class_display', matchedStudent.classDisplay);
-            localStorage.setItem('current_username', matchedStudent.username);
-            localStorage.setItem('student_authenticated', 'true');
+            if (data.user) {
+                // Fetch profile to verify institution and class MATCH what was selected in dropdown
+                // This prevents students from logging into other institutions by just knowing creds
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('institution_id, class_id')
+                    .eq('user_id', data.user.id)
+                    .single();
 
-            navigate('/');
+                if (profile) {
+                    // Strict check: Selected Insitution MUST match Profile Institution
+                    if (profile.institution_id !== selectedInstitutionId) {
+                        await supabase.auth.signOut();
+                        setError('Seçtiğiniz kurum hesabınızla eşleşmiyor.');
+                        setLoading(false);
+                        return;
+                    }
+                    // Strict check: Selected Class MUST match Profile Class
+                    if (profile.class_id !== selectedClassId) {
+                        await supabase.auth.signOut();
+                        setError('Seçtiğiniz sınıf hesabınızla eşleşmiyor.');
+                        setLoading(false);
+                        return;
+                    }
+
+                    // Save basic info for UI helpers (optional, since auth context has it)
+                    // We can fetch institution name for display if needed
+                    const institution = institutions.find(i => i.id === selectedInstitutionId);
+                    localStorage.setItem('user_role', 'student');
+                    localStorage.setItem('institution_id', selectedInstitutionId);
+                    localStorage.setItem('institution_name', institution?.name || '');
+
+                    const cls = classes.find(c => c.id === selectedClassId);
+                    if (cls) localStorage.setItem('class_display', `${cls.grade}-${cls.branch}`);
+
+                    navigate('/');
+                } else {
+                    setError('Kullanıcı profili bulunamadı.');
+                    await supabase.auth.signOut();
+                }
+            }
 
         } catch (err: any) {
             setError('Giriş sırasında beklenmeyen bir hata oluştu.');
@@ -290,42 +360,99 @@ const Auth: React.FC = () => {
 
     // ÖĞRETMEN/MÜDÜR GİRİŞ (Sadece şifre ile)
     const handleStaffLogin = async () => {
-        if (!staffPassword) {
-            setError('Kurum şifresi boş bırakılamaz.');
-            return;
-        }
+        if (!staffPassword) { setError('Kurum şifresi boş bırakılamaz.'); return; }
 
         setLoading(true);
         setError(null);
 
         try {
-            // Şifreyi kontrol et
             const staffInfo = STAFF_CREDENTIALS[staffPassword];
             if (!staffInfo) {
-                setError('Geçersiz kurum şifresi! Lütfen kurumunuzun size verdiği şifreyi girin.');
+                setError('Geçersiz kurum şifresi!');
                 setLoading(false);
                 return;
             }
 
-            // Kurumu bul
-            const institution = institutions.find(i => i.name === staffInfo.institutionName);
-            const institutionId = institution?.id || `demo-${staffInfo.institutionName.toLowerCase().replace(/\s/g, '-')}`;
+            // Map Code to Real Supabase Identity
+            const normalizeString = (str: string) => {
+                return str.toLowerCase()
+                    .replace(/ğ/g, 'g')
+                    .replace(/ü/g, 'u')
+                    .replace(/ş/g, 's')
+                    .replace(/ı/g, 'i')
+                    .replace(/i̇/g, 'i')
+                    .replace(/ö/g, 'o')
+                    .replace(/ç/g, 'c')
+                    .replace(/[^a-z0-9]/g, '_');
+            };
 
-            // localStorage'a kaydet
-            localStorage.setItem('user_role', staffInfo.role);
-            localStorage.setItem('institution_id', institutionId);
-            localStorage.setItem('institution_name', staffInfo.institutionName);
-            localStorage.setItem('staff_authenticated', 'true');
+            const normalizedInstName = normalizeString(staffInfo.institutionName);
+            const email = `${staffInfo.role}_${normalizedInstName}@studyflow.com`; // Changed .local to .com for validation
+            const securePassword = `studyflow_${staffPassword}`;
 
-            // Başarılı giriş mesajı
-            const roleText = staffInfo.role === 'teacher' ? 'Öğretmen' : 'Müdür';
-            console.log(`${roleText} girişi başarılı: ${staffInfo.institutionName}`);
+            console.log('Attempting login with:', email);
 
-            navigate('/');
+            // 1. Try Login
+            const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+                email,
+                password: securePassword
+            });
+
+            let user = signInData.user;
+            let error = signInError;
+
+            // 2. If User Not Found -> Auto Register (First time setup)
+            if (error && error.message.includes('Invalid login credentials')) {
+                console.log('User not found or pass wrong, attempting auto-provision for staff code...');
+
+                // Fetch Institution ID
+                const { data: instData } = await supabase.from('institutions').select('id').eq('name', staffInfo.institutionName).single();
+                let instId = instData?.id;
+
+                // Create Institution if missing (Demo fallback)
+                if (!instId) {
+                    const { data: newInst } = await supabase.from('institutions').insert([{
+                        name: staffInfo.institutionName,
+                        teacher_code: staffInfo.role === 'teacher' ? staffPassword : '000',
+                        principal_code: staffInfo.role === 'principal' ? staffPassword : '000'
+                    }]).select().single();
+                    instId = newInst?.id;
+                }
+
+                // Register
+                const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+                    email,
+                    password: securePassword,
+                    options: {
+                        data: {
+                            role: staffInfo.role,
+                            institution_id: instId,
+                            username: `${staffInfo.role}_${normalizedInstName}`
+                        }
+                    }
+                });
+
+                if (signUpError) throw signUpError;
+                user = signUpData.user;
+            } else if (error) {
+                throw error;
+            }
+
+            if (user) {
+                // Fetch Profile to ensure local storage sync
+                const { data: profile } = await supabase.from('profiles').select('institution_id').eq('user_id', user.id).single();
+
+                localStorage.setItem('user_role', staffInfo.role);
+                localStorage.setItem('institution_id', profile?.institution_id || '');
+                localStorage.setItem('institution_name', staffInfo.institutionName);
+                localStorage.setItem('staff_authenticated', 'true');
+
+                navigate('/');
+            }
 
         } catch (err: any) {
-            setError('Giriş sırasında beklenmeyen bir hata oluştu.');
-            console.error('Staff giriş hatası:', err);
+            setError(err.message || 'Giriş işlemi başarısız.');
+            console.error('Staff Login Error:', err);
         } finally {
             setLoading(false);
         }
@@ -333,7 +460,7 @@ const Auth: React.FC = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         if (selectedRole === 'student') {
             if (isLogin) {
                 await handleStudentLogin();
@@ -384,10 +511,10 @@ const Auth: React.FC = () => {
                     </div>
                     <h1 className="text-4xl font-black tracking-tighter mb-2">StudyFlow</h1>
                     <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em]">
-                        {!isLogin 
-                            ? 'ÖĞRENCİ KAYIT' 
-                            : (selectedRole === 'student' 
-                                ? 'ÖĞRENCİ GİRİŞİ' 
+                        {!isLogin
+                            ? 'ÖĞRENCİ KAYIT'
+                            : (selectedRole === 'student'
+                                ? 'ÖĞRENCİ GİRİŞİ'
                                 : (selectedRole === 'teacher' ? 'ÖĞRETMEN GİRİŞİ' : 'MÜDÜR GİRİŞİ')
                             )
                         }
@@ -403,7 +530,7 @@ const Auth: React.FC = () => {
 
                 {/* Main Form */}
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    
+
                     {/* ROL SEÇİCİ - Sadece Giriş modunda 3'ü göster, Kayıt modunda sadece Öğrenci */}
                     {isLogin ? (
                         <div className="grid grid-cols-3 gap-2 mb-6">
@@ -518,8 +645,8 @@ const Auth: React.FC = () => {
                             <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center mb-4">
                                 <i className={`fas ${selectedRole === 'teacher' ? 'fa-chalkboard-teacher text-indigo-400' : 'fa-user-tie text-amber-400'} text-2xl mb-2`}></i>
                                 <p className="text-xs text-zinc-400">
-                                    {selectedRole === 'teacher' 
-                                        ? 'Öğretmen girişi için kurumunuzun size verdiği şifreyi girin' 
+                                    {selectedRole === 'teacher'
+                                        ? 'Öğretmen girişi için kurumunuzun size verdiği şifreyi girin'
                                         : 'Müdür girişi için kurumunuzun size verdiği şifreyi girin'
                                     }
                                 </p>
@@ -532,11 +659,10 @@ const Auth: React.FC = () => {
                                     value={staffPassword}
                                     onChange={(e) => setStaffPassword(e.target.value)}
                                     autoComplete="current-password"
-                                    className={`w-full bg-[#121214] border border-white/5 rounded-2xl px-6 py-4 text-sm text-white outline-none transition-all placeholder-zinc-700 text-center tracking-[0.3em] font-mono ${
-                                        selectedRole === 'teacher' 
-                                            ? 'focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10' 
-                                            : 'focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10'
-                                    }`}
+                                    className={`w-full bg-[#121214] border border-white/5 rounded-2xl px-6 py-4 text-sm text-white outline-none transition-all placeholder-zinc-700 text-center tracking-[0.3em] font-mono ${selectedRole === 'teacher'
+                                        ? 'focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10'
+                                        : 'focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10'
+                                        }`}
                                     placeholder="••••"
                                 />
                             </div>
@@ -549,8 +675,8 @@ const Auth: React.FC = () => {
                         disabled={loading}
                         className={`w-full font-black py-4 rounded-2xl transition-all text-sm mt-6 shadow-lg active:scale-95 flex items-center justify-center gap-3 text-white ${loading ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed opacity-40' : getButtonColor()}`}
                     >
-                        {loading 
-                            ? <i className="fas fa-circle-notch fa-spin text-sm"></i> 
+                        {loading
+                            ? <i className="fas fa-circle-notch fa-spin text-sm"></i>
                             : (isLogin ? 'GİRİŞ YAP' : 'KAYIT OL')
                         }
                     </button>

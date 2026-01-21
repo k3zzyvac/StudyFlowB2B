@@ -82,7 +82,16 @@ const Notes: React.FC = () => {
                     addXp(250);
                 }
             } else {
-                const payload: any = { user_id: user.id, title, body_html: body, type: 'normal', updated_at: timestamp };
+                const instId = localStorage.getItem('institution_id');
+                const payload: any = {
+                    user_id: user.id,
+                    title,
+                    body_html: body,
+                    type: 'normal',
+                    updated_at: timestamp,
+                    institution_id: instId
+                };
+
                 if (noteId) await supabase.from('notes').update(payload).eq('id', noteId);
                 else {
                     const { data } = await supabase.from('notes').insert([payload]).select().single();
