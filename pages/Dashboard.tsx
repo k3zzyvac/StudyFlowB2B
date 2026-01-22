@@ -45,8 +45,9 @@ const StudentDashboard: React.FC<{
     assignments: any[],
     onAssignmentClick: (assignment: any) => void,
     institutionName: string,
-    classDisplay: string
-}> = ({ notes, xp, level, nextLevelXp, onNoteClick, onDeleteNote, onShareNote, onNewNote, onUploadPdf, fileInputRef, assignments, onAssignmentClick, institutionName, classDisplay }) => {
+    classDisplay: string,
+    userName: string
+}> = ({ notes, xp, level, nextLevelXp, onNoteClick, onDeleteNote, onShareNote, onNewNote, onUploadPdf, fileInputRef, assignments, onAssignmentClick, institutionName, classDisplay, userName }) => {
 
     const { t } = useLanguage();
 
@@ -60,7 +61,7 @@ const StudentDashboard: React.FC<{
                             <i className="fas fa-user-graduate"></i>
                         </div>
                         <div>
-                            <h2 className="text-white font-bold text-lg">Öğrenci Paneli</h2>
+                            <h2 className="text-white font-bold text-lg">{userName}</h2>
                             <p className="text-purple-400 text-sm font-medium">
                                 <i className="fas fa-building mr-2"></i>{institutionName}
                             </p>
@@ -689,6 +690,7 @@ const Dashboard: React.FC = () => {
     const { t, language } = useLanguage();
     const { xp, level, nextLevelXp, addXp } = useGamification();
     const [role, setRole] = useState<UserRole>('student');
+    const [userName, setUserName] = useState('Öğrenci'); // Default value
     const [notes, setNotes] = useState<Note[]>([]);
     const [weeklyActivity, setWeeklyActivity] = useState([0, 0, 0, 0, 0, 0, 0]);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -725,8 +727,11 @@ const Dashboard: React.FC = () => {
 
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
-                const { data } = await supabase.from('profiles').select('role').eq('user_id', user.id).single();
-                if (data) setRole(data.role as UserRole);
+                const { data } = await supabase.from('profiles').select('role, username').eq('user_id', user.id).single();
+                if (data) {
+                    setRole(data.role as UserRole);
+                    if (data.username) setUserName(data.username);
+                }
                 fetchNotes(user.id);
                 // Öğretmen/öğrenci ekranı için sınıfları çek
                 await fetchTeacherClasses();
@@ -879,8 +884,38 @@ const Dashboard: React.FC = () => {
                 setTeacherClasses([]);
             }
         } catch (e) {
-            console.error('[Dashboard] Fetch hatası:', e);
+            console.error('[Dashboard] Sınıf çekme genel hata:', e);
             setTeacherClasses([]);
+        }
+    };
+
+    const fetchNotes = async (userId: string) => {
+        try {
+            // HYBRID/OFFLINE MODE FOR NOTES: LocalStorage
+            // User requested to switch notes to LocalStorage to avoid DB errors and allow offline access.
+            // Key format: studyflow_notes_{userId}
+
+            const storageKey = `studyflow_notes_${userId}`;
+            const localData = localStorage.getItem(storageKey);
+
+            let loadedNotes: Note[] = [];
+
+            if (localData) {
+                loadedNotes = JSON.parse(localData);
+                // Sort by updated_at desc (handle potential undefined)
+                loadedNotes.sort((a, b) => {
+                    const tA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+                    const tB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+                    return tB - tA;
+                });
+            }
+
+            setNotes(loadedNotes);
+
+        } catch (error) {
+            console.error('Notlar yüklenirken hata:', error);
+            // Fallback empty
+            setNotes([]);
         }
     };
 
@@ -1114,22 +1149,7 @@ const Dashboard: React.FC = () => {
             setShowAssignModal(false);
         }
     };
-    const fetchNotes = async (userId: string) => {
-        // Strict filtering by user_id to prevent data leakage between teachers and students
-        if (!userId) return;
 
-        // Ensure we are filtering by the actual logged in user's ID
-        const { data: { user } } = await supabase.auth.getUser();
-        const activeUserId = user?.id || userId;
-
-        const { data } = await supabase.from('notes').select('*').eq('user_id', activeUserId).order('created_at', { ascending: false });
-        if (data) setNotes(data as Note[]);
-
-        // Mock activity fetch
-        const { data: activity } = await supabase.from('activity_logs').select('xp_amount, created_at').eq('user_id', activeUserId).gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
-        // Calculate weekly from this data (Mocking for now)
-        setWeeklyActivity([150, 230, 180, 320, 290, 140, 450]);
-    };
 
     // Modal açma fonksiyonu (Öğrenci veya Öğretmen)
     const handleNewNote = () => {
@@ -1143,15 +1163,29 @@ const Dashboard: React.FC = () => {
             if (!manualTitle.trim()) { alert("Başlık zorunlu."); return; }
             setShowNewNoteModal(false);
             const newId = 'note_' + Date.now();
-            toast.success('Yeni not oluşturuldu');
 
             const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
-                const local = JSON.parse(localStorage.getItem('guest_notes') || '[]');
-                local.unshift({ id: newId, user_id: 'guest', title: manualTitle, body_html: '<p>Not içerik...</p>', type: 'normal', created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
-                localStorage.setItem('guest_notes', JSON.stringify(local));
-                setNotes(local);
-            }
+            const userId = user ? user.id : 'guest';
+
+            // HYBRID/OFFLINE MODE: Save to LocalStorage
+            const storageKey = `studyflow_notes_${userId}`;
+            const localData = localStorage.getItem(storageKey);
+            let localNotes: any[] = localData ? JSON.parse(localData) : [];
+
+            localNotes.unshift({
+                id: newId,
+                user_id: userId,
+                title: manualTitle,
+                body_html: '<p>Not içerik...</p>',
+                type: 'normal',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                institution_id: localStorage.getItem('institution_id')
+            });
+
+            localStorage.setItem(storageKey, JSON.stringify(localNotes));
+            setNotes(localNotes);
+            toast.success('Yeni not oluşturuldu');
 
             // Öğretmen ise atama modalı aç
             if (role === 'teacher') {
@@ -1167,27 +1201,32 @@ const Dashboard: React.FC = () => {
             try {
                 const html = await aiHelper.generateNote(aiTopic, aiGrade, aiDetails, language);
                 setLoadingOverlay({ show: false, msg: '' });
+                const { data: { user } } = await supabase.auth.getUser();
+                const userId = user ? user.id : 'guest';
+
+                // HYBRID/OFFLINE MODE: Save to LocalStorage
                 const newId = 'ai_' + Date.now();
+                const storageKey = `studyflow_notes_${userId}`;
+
+                const localData = localStorage.getItem(storageKey);
+                let localNotes: any[] = localData ? JSON.parse(localData) : [];
+
+                localNotes.unshift({
+                    id: newId,
+                    user_id: userId,
+                    title: aiTopic,
+                    body_html: html,
+                    type: 'normal',
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                    institution_id: localStorage.getItem('institution_id')
+                });
+
+                localStorage.setItem(storageKey, JSON.stringify(localNotes));
+                setNotes(localNotes);
+
                 toast.success('AI notu oluşturuldu');
                 await addXp(250, 'note_create');
-
-                const { data: { user } } = await supabase.auth.getUser();
-                if (!user) {
-                    const local = JSON.parse(localStorage.getItem('guest_notes') || '[]');
-                    local.unshift({ id: newId, user_id: 'guest', title: aiTopic, body_html: html, type: 'normal', created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
-                    localStorage.setItem('guest_notes', JSON.stringify(local));
-                    setNotes(local);
-                } else {
-                    const instId = localStorage.getItem('institution_id');
-                    await supabase.from('notes').insert([{
-                        id: newId,
-                        user_id: user.id,
-                        title: aiTopic,
-                        body_html: html,
-                        type: 'normal',
-                        institution_id: instId
-                    }]);
-                }
 
                 // Öğretmen ise atama modalı aç
                 if (role === 'teacher') {
@@ -1211,13 +1250,19 @@ const Dashboard: React.FC = () => {
         if (!confirm("Notu silmek istediğinize emin misiniz?")) return;
 
         const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-            await supabase.from('notes').delete().eq('id', id);
-        } else {
-            const local = notes.filter(n => n.id !== id);
-            localStorage.setItem('guest_notes', JSON.stringify(local));
-        }
-        setNotes(prev => prev.filter(n => n.id !== id));
+
+        // HYBRID/OFFLINE MODE: Delete from LocalStorage
+        const userId = user ? user.id : 'guest';
+        const storageKey = `studyflow_notes_${userId}`;
+
+        const localData = localStorage.getItem(storageKey);
+        let localNotes: any[] = localData ? JSON.parse(localData) : [];
+
+        localNotes = localNotes.filter((n: any) => n.id !== id);
+        localStorage.setItem(storageKey, JSON.stringify(localNotes));
+        setNotes(localNotes);
+
+        toast.success("Not silindi");
     };
 
     const handleShareNote = (id: string) => {
@@ -1310,10 +1355,7 @@ const Dashboard: React.FC = () => {
                                             onChange={(e) => setAiGrade(e.target.value)}
                                             className="w-full bg-[#0F0F12] border border-[#27272A] rounded-xl p-4 text-white outline-none focus:border-purple-500 transition-all font-medium appearance-none"
                                         >
-                                            <option value="9">9. Sınıf</option>
-                                            <option value="10">10. Sınıf</option>
-                                            <option value="11">11. Sınıf</option>
-                                            <option value="12">12. Sınıf</option>
+                                            {[9, 10, 11, 12].map(grade => <option key={grade} value={grade}>{grade}. Sınıf</option>)}
                                             <option value="YKS">YKS (TYT/AYT)</option>
                                             <option value="Uni">Üniversite</option>
                                         </select>
@@ -1549,6 +1591,7 @@ const Dashboard: React.FC = () => {
                     onAssignmentClick={handleAssignmentClick}
                     institutionName={localStorage.getItem('institution_name') || 'Bilinmeyen Kurum'}
                     classDisplay={localStorage.getItem('class_display') || 'Sınıf Belirlenmedi'}
+                    userName={userName}
                 />
             )}
         </div>

@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabaseClient';
 import { aiHelper } from '../lib/aiHelper';
 import { useLanguage } from '../lib/LanguageContext';
 import { useGamification } from '../lib/GamificationContext';
+import toast from 'react-hot-toast';
 
 
 const FONTS = [
@@ -32,21 +33,41 @@ const Notes: React.FC = () => {
 
     useEffect(() => {
         const initNote = async () => {
-            if (noteId && !state?.initialContent) {
-                const { data } = await supabase.from('notes').select('*').eq('id', noteId).single();
-                if (data && editorRef.current) {
-                    editorRef.current.innerHTML = data.body_html;
-                    setEditorTitle(data.title);
+            if (editorRef.current && state?.initialContent) {
+                editorRef.current.innerHTML = state.initialContent;
+                return;
+            }
+
+            if (noteId) {
+                // Determine User ID for LocalStorage Key
+                const { data: { user } } = await supabase.auth.getUser();
+                const userId = user ? user.id : 'guest';
+                const storageKey = `studyflow_notes_${userId}`;
+
+                // 1. Try LocalStorage
+                const localData = localStorage.getItem(storageKey);
+                const localNotes = localData ? JSON.parse(localData) : [];
+                const foundLocal = localNotes.find((n: any) => n.id === noteId);
+
+                if (foundLocal && editorRef.current) {
+                    editorRef.current.innerHTML = foundLocal.body_html;
+                    setEditorTitle(foundLocal.title);
                 } else {
-                    const localNotes = JSON.parse(localStorage.getItem('guest_notes') || '[]');
-                    const found = localNotes.find((n: any) => n.id === noteId);
-                    if (found && editorRef.current) {
-                        editorRef.current.innerHTML = found.body_html;
-                        setEditorTitle(found.title);
+                    // 2. Fallback to Supabase (Old notes or different device sync attempt)
+                    const { data } = await supabase.from('notes').select('*').eq('id', noteId).single();
+                    if (data && editorRef.current) {
+                        editorRef.current.innerHTML = data.body_html;
+                        setEditorTitle(data.title);
+                    } else {
+                        // 3. Fallback to Guest Notes (Legacy)
+                        const guestNotes = JSON.parse(localStorage.getItem('guest_notes') || '[]');
+                        const foundGuest = guestNotes.find((n: any) => n.id === noteId);
+                        if (foundGuest && editorRef.current) {
+                            editorRef.current.innerHTML = foundGuest.body_html;
+                            setEditorTitle(foundGuest.title);
+                        }
                     }
                 }
-            } else if (state?.initialContent && editorRef.current) {
-                editorRef.current.innerHTML = state.initialContent;
             }
         };
         initNote();
@@ -63,43 +84,72 @@ const Notes: React.FC = () => {
         const timestamp = new Date().toISOString();
 
         try {
-            if (!user) {
-                const localNotes = JSON.parse(localStorage.getItem('guest_notes') || '[]');
-                if (noteId) {
-                    const index = localNotes.findIndex((n: any) => n.id === noteId);
-                    if (index !== -1) {
-                        localNotes[index] = { ...localNotes[index], title, body_html: body, updated_at: timestamp };
-                    } else {
-                        // Dashboard'dan gelen ID ile yeni kayıt
-                        localNotes.push({ id: noteId, user_id: 'guest', title, body_html: body, type: 'normal', created_at: timestamp, updated_at: timestamp });
-                    }
-                    localStorage.setItem('guest_notes', JSON.stringify(localNotes));
+            // HYBRID/OFFLINE MODE: Save to LocalStorage ONLY
+            // As requested, we bypass Supabase DB for notes to prevent errors and enable offline mode.
+
+            const userId = user ? user.id : 'guest';
+            const storageKey = `studyflow_notes_${userId}`;
+
+            // Fetch existing notes
+            const localData = localStorage.getItem(storageKey);
+            let localNotes: any[] = localData ? JSON.parse(localData) : [];
+
+            if (noteId && !noteId.startsWith('new_')) {
+                // UPDATE EXISTING
+                const index = localNotes.findIndex((n: any) => n.id === noteId);
+                if (index !== -1) {
+                    localNotes[index] = {
+                        ...localNotes[index],
+                        title,
+                        body_html: body,
+                        updated_at: timestamp
+                    };
                 } else {
-                    const newId = 'guest_' + Date.now();
-                    localNotes.push({ id: newId, user_id: 'guest', title, body_html: body, type: 'normal', created_at: timestamp, updated_at: timestamp });
-                    localStorage.setItem('guest_notes', JSON.stringify(localNotes));
-                    setNoteId(newId);
-                    addXp(250);
+                    // Not found locally? Create it.
+                    localNotes.push({
+                        id: noteId,
+                        user_id: userId,
+                        title,
+                        body_html: body,
+                        type: 'normal',
+                        created_at: timestamp,
+                        updated_at: timestamp,
+                        institution_id: localStorage.getItem('institution_id')
+                    });
                 }
             } else {
-                const instId = localStorage.getItem('institution_id');
-                const payload: any = {
-                    user_id: user.id,
+                // CREATE NEW
+                // Generate a robust local ID that resembles Supabase UUID to play nice (or just random string)
+                // Using 'loc_' prefix to identify it easily
+                const newId = 'loc_' + Date.now() + Math.random().toString(36).substr(2, 9);
+
+                localNotes.push({
+                    id: newId,
+                    user_id: userId,
                     title,
                     body_html: body,
                     type: 'normal',
+                    created_at: timestamp,
                     updated_at: timestamp,
-                    institution_id: instId
-                };
+                    institution_id: localStorage.getItem('institution_id')
+                });
 
-                if (noteId) await supabase.from('notes').update(payload).eq('id', noteId);
-                else {
-                    const { data } = await supabase.from('notes').insert([payload]).select().single();
-                    if (data) { setNoteId(data.id); addXp(250); }
-                }
+                setNoteId(newId);
+                addXp(250);
             }
+
+            // Save back to storage
+            localStorage.setItem(storageKey, JSON.stringify(localNotes));
+
             setShowToast(true); setTimeout(() => setShowToast(false), 2000);
-        } catch (e) { console.error(e); } finally { setSaving(false); }
+            toast.success("Not yerel olarak kaydedildi");
+
+        } catch (e) {
+            console.error(e);
+            toast.error("Kaydetme hatası");
+        } finally {
+            setSaving(false);
+        }
     }, [noteId, editorTitle, addXp]);
 
     const handlePdfExport = () => {
