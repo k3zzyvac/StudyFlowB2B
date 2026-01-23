@@ -53,15 +53,27 @@ const Notes: React.FC = () => {
                     editorRef.current.innerHTML = foundLocal.body_html;
                     setEditorTitle(foundLocal.title);
                 } else {
-                    // 2. Fallback to Supabase (Old notes or different device sync attempt)
-                    // ONLY query if it's a valid UUID to avoid 400 Bad Request errors
+                    // 2. Fallback to Supabase (Teacher assigned notes)
                     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(noteId);
 
                     if (isUuid) {
-                        const { data } = await supabase.from('notes').select('*').eq('id', noteId).maybeSingle();
+                        setLoadingStatus(language === 'tr' ? 'Not Yükleniyor...' : 'Loading Note...');
+                        const { data, error } = await supabase.from('notes').select('*').eq('id', noteId).maybeSingle();
+                        setLoadingStatus(null);
+
                         if (data && editorRef.current) {
-                            editorRef.current.innerHTML = data.body_html;
-                            setEditorTitle(data.title);
+                            editorRef.current.innerHTML = data.body_html || '';
+                            setEditorTitle(data.title || 'Adsız Not');
+                        } else if (error || !data) {
+                            console.error("Supabase fetch error or no data:", error);
+                            if (editorRef.current) {
+                                editorRef.current.innerHTML = `<div style="padding: 40px; text-align: center; color: #666;">
+                                    <i class="fas fa-exclamation-triangle" style="font-size: 48px; margin-bottom: 20px; color: #f59e0b;"></i>
+                                    <h3>Not Bulunamadı</h3>
+                                    <p>Bu not henüz buluta yüklenmemiş veya silinmiş olabilir. Lütfen öğretmeninizle iletişime geçin.</p>
+                                </div>`;
+                                setEditorTitle('Hata: Not Bulunamadı');
+                            }
                         }
                     } else {
                         // 3. Fallback to Guest Notes (Legacy)
@@ -70,6 +82,9 @@ const Notes: React.FC = () => {
                         if (foundGuest && editorRef.current) {
                             editorRef.current.innerHTML = foundGuest.body_html;
                             setEditorTitle(foundGuest.title);
+                        } else if (editorRef.current) {
+                            // Global fallback
+                            editorRef.current.innerHTML = 'İçerik yüklenemedi...';
                         }
                     }
                 }
@@ -99,9 +114,12 @@ const Notes: React.FC = () => {
             const localData = localStorage.getItem(storageKey);
             let localNotes: any[] = localData ? JSON.parse(localData) : [];
 
-            if (noteId && !noteId.startsWith('new_')) {
-                // UPDATE EXISTING
-                const index = localNotes.findIndex((n: any) => n.id === noteId);
+            const isUuid = noteId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(noteId);
+            const foundInLocal = noteId ? localNotes.findIndex((n: any) => n.id === noteId) : -1;
+
+            if (noteId && !noteId.startsWith('new_') && (foundInLocal !== -1 || !isUuid)) {
+                // UPDATE EXISTING LOCAL
+                const index = foundInLocal;
                 if (index !== -1) {
                     localNotes[index] = {
                         ...localNotes[index],
@@ -123,9 +141,8 @@ const Notes: React.FC = () => {
                     });
                 }
             } else {
-                // CREATE NEW
-                // Generate a robust local ID that resembles Supabase UUID to play nice (or just random string)
-                // Using 'loc_' prefix to identify it easily
+                // CREATE NEW (OR IMPORT ASSIGNMENT)
+                // If it was an assignment (UUID from teacher), we create a fresh local copy for the student
                 const newId = 'loc_' + Date.now() + Math.random().toString(36).substr(2, 9);
 
                 localNotes.push({
@@ -141,6 +158,7 @@ const Notes: React.FC = () => {
 
                 setNoteId(newId);
                 addXp(250);
+                if (isUuid) toast.success("Not kütüphanenize kopyalandı");
             }
 
             // Save back to storage

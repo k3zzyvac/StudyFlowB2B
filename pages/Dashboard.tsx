@@ -986,27 +986,32 @@ const Dashboard: React.FC = () => {
     };
 
     const handleAssignmentClick = async (assignment: any) => {
-        // Öğrenci atamayı görüntüleyince sil
+        // --- OPTIMISTIC UI UPDATE ---
+        // Listeden anında kaldır ki kullanıcı "açıldı mı?" diye şüphe etmesin
+        setAssignments(prev => prev.filter(a => a.id !== assignment.id));
+
         try {
             if (assignment.id.startsWith('demo_')) {
                 const local = JSON.parse(localStorage.getItem('mock_assignments') || '[]');
                 const updated = local.filter((a: any) => a.id !== assignment.id);
                 localStorage.setItem('mock_assignments', JSON.stringify(updated));
-                setAssignments(updated);
             } else {
                 const { error } = await supabase.from('assignments').delete().eq('id', assignment.id);
-                if (!error) setAssignments(prev => prev.filter(a => a.id !== assignment.id));
+                if (error) {
+                    console.error("Supabase delete failed, but we removed it from UI anyway:", error);
+                }
             }
-            toast.success('Atama açıldı ve listeden kaldırıldı');
         } catch (e) {
             console.error('Atama silme hatası:', e);
         }
 
-        // Sonra içeriği aç
+        // --- NAVIGATE TO CONTENT ---
+        const targetId = assignment.content_id || assignment.item_id || assignment.id;
+
         if (assignment.type === 'exam') {
-            navigate('/exam', { state: { examId: assignment.content_id || assignment.item_id } });
+            navigate('/exam', { state: { examId: targetId } });
         } else {
-            navigate('/notes', { state: { noteId: assignment.content_id || assignment.item_id || assignment.id } });
+            navigate('/notes', { state: { noteId: targetId, initialTitle: assignment.title } });
         }
     };
 
