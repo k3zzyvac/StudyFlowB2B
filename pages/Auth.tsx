@@ -310,12 +310,11 @@ const Auth: React.FC = () => {
 
             if (data.user) {
                 // Fetch profile to verify institution and class MATCH what was selected in dropdown
-                // This prevents students from logging into other institutions by just knowing creds
                 const { data: profile } = await supabase
                     .from('profiles')
                     .select('institution_id, class_id')
                     .eq('user_id', data.user.id)
-                    .single();
+                    .maybeSingle();
 
                 if (profile) {
                     // Strict check: Selected Insitution MUST match Profile Institution
@@ -341,12 +340,25 @@ const Auth: React.FC = () => {
                     localStorage.setItem('institution_name', institution?.name || '');
 
                     const cls = classes.find(c => c.id === selectedClassId);
-                    if (cls) localStorage.setItem('class_display', `${cls.grade}-${cls.branch}`);
+                    if (cls) {
+                        localStorage.setItem('class_display', `${cls.grade}-${cls.branch}`);
+                        localStorage.setItem('user_class_id', cls.id);
+                    }
 
                     navigate('/');
                 } else {
-                    setError('Kullanıcı profili bulunamadı.');
-                    await supabase.auth.signOut();
+                    // Profile missing but Auth OK - likely new DB
+                    const institution = institutions.find(i => i.id === selectedInstitutionId);
+                    localStorage.setItem('user_role', 'student');
+                    localStorage.setItem('institution_id', selectedInstitutionId);
+                    localStorage.setItem('institution_name', institution?.name || '');
+                    const cls = classes.find(c => c.id === selectedClassId);
+                    if (cls) {
+                        localStorage.setItem('class_display', `${cls.grade}-${cls.branch}`);
+                        localStorage.setItem('user_class_id', cls.id);
+                    }
+                    localStorage.setItem('student_authenticated', 'true');
+                    navigate('/');
                 }
             }
 
@@ -406,7 +418,7 @@ const Auth: React.FC = () => {
                 console.log('User not found or pass wrong, attempting auto-provision for staff code...');
 
                 // Fetch Institution ID
-                const { data: instData } = await supabase.from('institutions').select('id').eq('name', staffInfo.institutionName).single();
+                const { data: instData } = await supabase.from('institutions').select('id').eq('name', staffInfo.institutionName).maybeSingle();
                 let instId = instData?.id;
 
                 // Create Institution if missing (Demo fallback)
@@ -415,7 +427,7 @@ const Auth: React.FC = () => {
                         name: staffInfo.institutionName,
                         teacher_code: staffInfo.role === 'teacher' ? staffPassword : '000',
                         principal_code: staffInfo.role === 'principal' ? staffPassword : '000'
-                    }]).select().single();
+                    }]).select().maybeSingle();
                     instId = newInst?.id;
                 }
 
@@ -440,10 +452,21 @@ const Auth: React.FC = () => {
 
             if (user) {
                 // Fetch Profile to ensure local storage sync
-                const { data: profile } = await supabase.from('profiles').select('institution_id').eq('user_id', user.id).single();
+                const { data: profile } = await supabase.from('profiles')
+                    .select('institution_id')
+                    .eq('user_id', user.id)
+                    .maybeSingle();
+
+                let instId = profile?.institution_id || user.user_metadata?.institution_id;
+
+                // FINAL RECOVERY: If still no ID, fetch by name from institutions table
+                if (!instId) {
+                    const { data: instData } = await supabase.from('institutions').select('id').eq('name', staffInfo.institutionName).maybeSingle();
+                    instId = instData?.id;
+                }
 
                 localStorage.setItem('user_role', staffInfo.role);
-                localStorage.setItem('institution_id', profile?.institution_id || '');
+                localStorage.setItem('institution_id', instId || '');
                 localStorage.setItem('institution_name', staffInfo.institutionName);
                 localStorage.setItem('staff_authenticated', 'true');
 

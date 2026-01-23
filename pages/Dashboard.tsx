@@ -110,14 +110,14 @@ const StudentDashboard: React.FC<{
             {/* ATANAN ÖDEVLER VE NOTLAR - Sadece öğrencinin sınıfına atananlar */}
             <div className="flex items-center justify-between mb-2 px-2">
                 <h2 className="text-gray-400 font-bold text-xs uppercase tracking-widest">Atanan Ödevler & Notlar</h2>
-                <span className="text-gray-600 text-xs font-mono">{assignments.filter(a => a.class_id === classDisplay).length} Yeni</span>
+                <span className="text-gray-600 text-xs font-mono">{assignments.length} Yeni</span>
             </div>
 
             <div className="flex flex-col space-y-2 mb-8">
-                {assignments.filter(a => a.class_id === classDisplay).length === 0 ? (
+                {assignments.length === 0 ? (
                     <div className="py-4 text-center border border-dashed border-[#27272A] rounded-xl text-gray-600 text-xs">Henüz atanmış bir şey yok.</div>
                 ) : (
-                    assignments.filter(a => a.class_id === classDisplay).map((asgn: any) => (
+                    assignments.map((asgn: any) => (
                         <div key={asgn.id} className="flex items-center justify-between p-4 bg-gradient-to-r from-purple-900/10 to-transparent border border-purple-500/20 rounded-xl">
                             <div className="flex items-center gap-4">
                                 <div className="w-8 h-8 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center">
@@ -292,14 +292,13 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
 
     useEffect(() => {
         fetchClasses();
-        // Raporları kuruma göre filtrele
-        const institutionReports = initialReports.filter(r => {
-            // localStorage key ile eşleştir
-            const reportInstitution = localStorage.getItem('institution_name') || '';
-            return true; // Şimdilik hepsini göster, gerçek filtreleme için institution_id kullanılmalı
-        });
         setReports(initialReports);
     }, [initialReports, institutionName]);
+
+    const getSelectedClassLabel = () => {
+        const cls = classList.find(c => c.id === selectedClass);
+        return cls ? `${cls.grade}-${cls.branch}` : selectedClass;
+    };
 
     const fetchClasses = async () => {
         try {
@@ -329,6 +328,12 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
 
     const handleAddClass = async () => {
         const instId = localStorage.getItem('institution_id');
+
+        if (!instId || instId === '' || instId === 'null') {
+            toast.error('Kurum kimliği eksik! Lütfen tekrar giriş yapın.');
+            console.error('AddClass Error: institution_id is missing/empty');
+            return;
+        }
 
         try {
             const { data, error } = await supabase.from('classes').insert([{
@@ -402,13 +407,26 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
 
     // Günlük raporlar - tarihe göre grupla
     const getUniqueDates = () => {
-        const classReports = reports.filter(r => r.class_id === selectedClass);
+        // Hem ID hem de isim (eski veri) ile eşleşenleri bul
+        const classReports = reports.filter(r => {
+            if (r.class_id === selectedClass) return true;
+            const cls = classList.find(c => c.id === selectedClass);
+            if (cls && r.class_id === `${cls.grade}-${cls.branch}`) return true;
+            return false;
+        });
         const dates = Array.from(new Set(classReports.map(r => r.date)));
         return dates.sort().reverse();
     };
 
     const getReportsForDate = () => {
-        return reports.filter(r => r.class_id === selectedClass && r.date === selectedDate);
+        return reports.filter(r => {
+            const dateMatch = r.date === selectedDate;
+            const classMatch = r.class_id === selectedClass || (() => {
+                const cls = classList.find(c => c.id === selectedClass);
+                return cls && r.class_id === `${cls.grade}-${cls.branch}`;
+            })();
+            return dateMatch && classMatch;
+        });
     };
 
     const generateWeeklyPDF = () => {
@@ -420,7 +438,7 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
             <div style="padding: 40px; font-family: 'Segoe UI', Arial, sans-serif; background: white !important; color: black !important; width: 100%;">
                 <div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 20px; margin-bottom: 30px;">
                     <h1 style="margin: 0; font-size: 24px; color: #000; font-weight: 900; letter-spacing: 1px;">GÜNLÜK SINIF RAPORU</h1>
-                    <p style="margin: 5px 0; color: #444; font-size: 14px;">${selectedClass} | ${dateStr} | ${institutionName}</p>
+                    <p style="margin: 5px 0; color: #444; font-size: 14px;">${getSelectedClassLabel()} | ${dateStr} | ${institutionName}</p>
                 </div>
                 <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; border: 1px solid #000;">
                     <thead>
@@ -453,7 +471,7 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
 
         const opt = {
             margin: 0.5,
-            filename: `${selectedClass}_${dateStr}_Raporu.pdf`,
+            filename: `${getSelectedClassLabel().replace(/\//g, '-')}_${dateStr}_Raporu.pdf`,
             image: { type: 'jpeg', quality: 0.98 },
             html2canvas: { scale: 2, useCORS: true },
             jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' }
@@ -473,7 +491,7 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
                 </div>
                 
                 <div style="display: grid; grid-template-cols: 1fr 1fr; gap: 30px; margin-bottom: 40px; border: 1px solid #000; padding: 20px; border-radius: 4px;">
-                    <div style="font-size: 14px;"><strong>SINIF:</strong> <span style="margin-left: 10px;">${report.class_id}</span></div>
+                    <div style="font-size: 14px;"><strong>SINIF:</strong> <span style="margin-left: 10px;">${getSelectedClassLabel()}</span></div>
                     <div style="font-size: 14px;"><strong>TARİH:</strong> <span style="margin-left: 10px;">${new Date(report.date).toLocaleDateString('tr-TR')}</span></div>
                     <div style="font-size: 14px;"><strong>ÖĞRETMEN:</strong> <span style="margin-left: 10px;">${report.teacher_name}</span></div>
                     <div style="font-size: 14px;"><strong>DERS:</strong> <span style="margin-left: 10px;">${report.lesson}</span></div>
@@ -525,8 +543,8 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
                     </p>
                     <p className="text-gray-500 text-xs mt-1">
                         {viewMode === 'classes' && 'Sınıf Listesi'}
-                        {viewMode === 'dates' && `${selectedClass} - Günlük Raporlar`}
-                        {viewMode === 'reports' && `${selectedClass} - ${new Date(selectedDate).toLocaleDateString('tr-TR')} Raporları`}
+                        {viewMode === 'dates' && `${getSelectedClassLabel()} - Günlük Raporlar`}
+                        {viewMode === 'reports' && `${getSelectedClassLabel()} - ${new Date(selectedDate).toLocaleDateString('tr-TR')} Raporları`}
                     </p>
                 </div>
                 {viewMode !== 'classes' && (
@@ -544,9 +562,11 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 animate-fade-in">
                     {classList.map(cls => (
                         <div key={cls.id} className="relative group">
-                            <button onClick={() => { setSelectedClass(`${cls.grade}-${cls.branch}`); setViewMode('dates'); }}
+                            <button onClick={() => { setSelectedClass(cls.id); setViewMode('dates'); }}
                                 className="w-full p-6 rounded-2xl border border-[#27272A] bg-[#18181B] hover:border-purple-500 hover:bg-[#202025] transition-all">
-                                <div className="text-2xl font-black text-white group-hover:text-purple-400 transition-colors">{cls.grade}-{cls.branch}</div>
+                                <div className="text-2xl font-black text-white group-hover:text-purple-400 transition-colors">
+                                    {cls.grade}-{cls.branch}
+                                </div>
                                 <div className="text-[10px] uppercase font-bold text-gray-500">Sınıf Dosyası</div>
                             </button>
                             <button onClick={() => handleDeleteClass(cls)} className="absolute -top-2 -right-2 w-6 h-6 bg-red-600 hover:bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -583,7 +603,7 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
             {viewMode === 'reports' && (
                 <div className="space-y-6 animate-fade-in">
                     <div className="flex justify-between items-center">
-                        <h3 className="text-white font-bold">{new Date(selectedDate).toLocaleDateString('tr-TR')} - {selectedClass}</h3>
+                        <h3 className="text-white font-bold">{new Date(selectedDate).toLocaleDateString('tr-TR')} - {getSelectedClassLabel()}</h3>
                         <button onClick={generateWeeklyPDF} className="bg-red-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-red-700 transition-all flex items-center gap-2">
                             <i className="fas fa-file-pdf"></i> PDF İndir
                         </button>
@@ -727,16 +747,34 @@ const Dashboard: React.FC = () => {
 
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
-                const { data } = await supabase.from('profiles').select('role, username').eq('user_id', user.id).single();
+                let { data, error } = await supabase.from('profiles').select('role, username, class_id, institution_id').eq('user_id', user.id).maybeSingle();
+
+                // FALLBACK: If profile record is missing (common during DB resets/mismatches)
+                if (!data || error) {
+                    console.warn('[Dashboard] Profil bulunamadı, fallback (metadata) kullanılıyor...');
+                    data = {
+                        role: user.user_metadata?.role || localRole || 'student',
+                        username: user.user_metadata?.username || user.email?.split('@')[0],
+                        institution_id: user.user_metadata?.institution_id || localStorage.getItem('institution_id'),
+                        class_id: user.user_metadata?.class_id || localStorage.getItem('user_class_id')
+                    };
+                }
+
                 if (data) {
                     setRole(data.role as UserRole);
                     if (data.username) setUserName(data.username);
+                    if (data.institution_id) {
+                        localStorage.setItem('institution_id', data.institution_id);
+                    }
+                    if (data.class_id) {
+                        localStorage.setItem('user_class_id', data.class_id);
+                    }
                 }
                 fetchNotes(user.id);
                 // Öğretmen/öğrenci ekranı için sınıfları çek
                 await fetchTeacherClasses();
                 // Öğrenci ise atamaları çek
-                await fetchAssignments(user.id);
+                await fetchAssignments(user.id, data?.class_id);
             } else {
                 // Guest/Demo fetch - rol localStorage'dan alınıyor
                 const localNotes = JSON.parse(localStorage.getItem('guest_notes') || '[]');
@@ -762,19 +800,23 @@ const Dashboard: React.FC = () => {
 
     const loadWeeklyReports = async () => {
         try {
-            // Get institution ID just in case needed, but RLS handles filtering
-            const instId = localStorage.getItem('institution_id');
+            let instId = localStorage.getItem('institution_id');
 
             if (!instId || instId.trim() === '') {
-                // Try simple recovery or abort
-                console.warn('Institution ID missing for reports');
-                return;
+                // Try deep recovery from profile
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    const { data } = await supabase.from('profiles').select('institution_id').eq('user_id', user.id).maybeSingle();
+                    if (data?.institution_id) instId = data.institution_id;
+                }
             }
+
+            if (!instId || instId.trim() === '') return;
 
             const { data, error } = await supabase
                 .from('weekly_reports')
                 .select('*')
-                .eq('institution_id', instId) // RLS handles this, but explicit check is safer
+                .eq('institution_id', instId)
                 .order('date', { ascending: false });
 
             if (error) throw error;
@@ -840,7 +882,7 @@ const Dashboard: React.FC = () => {
                         .from('profiles')
                         .select('institution_id')
                         .eq('user_id', user.id)
-                        .single();
+                        .maybeSingle();
 
                     if (profile && profile.institution_id) {
                         // Found it! Use this ID and update local storage
@@ -919,13 +961,22 @@ const Dashboard: React.FC = () => {
         }
     };
 
-    const fetchAssignments = async (userId: string) => {
+    const fetchAssignments = async (userId: string, classId?: string) => {
         try {
-            const { data, error } = await supabase
+            const currentClassId = classId || localStorage.getItem('user_class_id');
+
+            let query = supabase
                 .from('assignments')
-                .select('*')
-                .eq('student_id', userId)
-                .order('created_at', { ascending: false });
+                .select('*');
+
+            if (currentClassId) {
+                query = query.or(`student_id.eq.${userId},class_id.eq.${currentClassId}`);
+            } else {
+                query = query.eq('student_id', userId);
+            }
+
+            const { data, error } = await query.order('created_at', { ascending: false });
+
             if (!error && data) {
                 setAssignments(data);
             }
@@ -994,16 +1045,30 @@ const Dashboard: React.FC = () => {
     };
 
     const addWeeklyReport = async (report: Omit<WeeklyReport, 'id' | 'date'> & { date?: string }) => {
-        const instId = localStorage.getItem('institution_id');
+        let instId = localStorage.getItem('institution_id');
         const timestamp = new Date().toISOString().split('T')[0];
 
-        const newReport: any = {
-            ...report,
-            date: report.date || timestamp,
-            institution_id: instId
-        };
-
         try {
+            const { data: { user } } = await supabase.auth.getUser();
+
+            // Recovery for institution_id
+            if ((!instId || instId.startsWith('demo-')) && user) {
+                const { data: prof } = await supabase.from('profiles').select('institution_id').eq('user_id', user.id).maybeSingle();
+                if (prof?.institution_id) {
+                    instId = prof.institution_id;
+                    localStorage.setItem('institution_id', instId as string);
+                } else if (user.user_metadata?.institution_id) {
+                    instId = user.user_metadata.institution_id;
+                    localStorage.setItem('institution_id', instId as string);
+                }
+            }
+
+            const newReport: any = {
+                ...report,
+                date: report.date || timestamp,
+                institution_id: instId
+            };
+
             const { data, error } = await supabase.from('weekly_reports').insert([newReport]).select();
 
             if (error) throw error;
@@ -1052,8 +1117,12 @@ const Dashboard: React.FC = () => {
             return;
         }
 
+        // Find the actual class UUID from teacherClasses if possible
+        const classObj = teacherClasses.find(c => `${c.grade}-${c.branch}` === selectedClass);
+        const classIdentifier = classObj ? classObj.id : selectedClass;
+
         const newReport = await addWeeklyReport({
-            class_id: selectedClass,
+            class_id: classIdentifier,
             teacher_name: teacherName,
             lesson: lessonName,
             rating: selectedRating,
@@ -1076,73 +1145,110 @@ const Dashboard: React.FC = () => {
         toast.success('Rapor Müdüre gönderildi');
     };
 
-    const handleHandleAssign = async (class_id: string) => {
+    const handleHandleAssign = async (classId: string, className?: string) => {
         if (!assignItem) return;
 
         try {
-            const instId = localStorage.getItem('institution_id');
-            const isStaff = localStorage.getItem('staff_authenticated') === 'true';
+            let instId = localStorage.getItem('institution_id');
+            const displayClassName = className || classId;
 
-            // LOCAL/DEMO MODE ASSIGNMENT
-            if (instId && instId.startsWith('demo-')) {
-                const localAssignments = JSON.parse(localStorage.getItem('mock_assignments') || '[]');
-
-                const newAssignment = {
-                    id: 'demo_' + Date.now(),
-                    content_id: assignItem.id,
-                    title: assignItem.title,
-                    type: assignItem.type,
-                    class_id: class_id,
-                    institution_id: instId,
-                    created_at: new Date().toISOString()
-                };
-
-                localAssignments.push(newAssignment);
-                localStorage.setItem('mock_assignments', JSON.stringify(localAssignments));
-                setAssignments(localAssignments);
-
-                toast.success(`"${assignItem.title}" ${class_id} sınıfına atandı!`);
-                setShowAssignModal(false);
-                setAssignItem(null);
-                return;
-            }
-
-            // REAL MODE (Supabase)
+            // REAL/SUPABASE MODE
             const { data: { user } } = await supabase.auth.getUser();
-
             if (!user) {
                 toast.error('Oturum süreniz dolmuş olabilir.');
                 return;
             }
 
+            // Recovery for institution_id
+            if (!instId || instId.startsWith('demo-')) {
+                const { data: prof } = await supabase.from('profiles').select('institution_id').eq('user_id', user.id).maybeSingle();
+                if (prof?.institution_id) {
+                    instId = prof.institution_id;
+                    localStorage.setItem('institution_id', instId as string);
+                } else if (user.user_metadata?.institution_id) {
+                    instId = user.user_metadata.institution_id;
+                    localStorage.setItem('institution_id', instId as string);
+                }
+            }
+
+            // LOCAL/DEMO MODE fallback if still no real ID
+            if (!instId || instId.startsWith('demo-')) {
+                const localAssignments = JSON.parse(localStorage.getItem('mock_assignments') || '[]');
+                const newAssignment = {
+                    id: 'demo_' + Date.now(),
+                    content_id: assignItem.id,
+                    title: assignItem.title,
+                    type: assignItem.type,
+                    class_id: classId,
+                    institution_id: instId || 'demo-1',
+                    created_at: new Date().toISOString()
+                };
+                localAssignments.push(newAssignment);
+                localStorage.setItem('mock_assignments', JSON.stringify(localAssignments));
+                setAssignments(localAssignments);
+                toast.success(`"${assignItem.title}" ${displayClassName} sınıfına atandı! (Demo Modu)`);
+                setShowAssignModal(false);
+                setAssignItem(null);
+                return;
+            }
+
+            // --- SYNC LOCAL NOTE TO DB BEFORE ASSIGNING ---
+            let realContentId = assignItem.id;
+            const isLocal = realContentId.startsWith('ai_') || realContentId.startsWith('loc_') || realContentId.startsWith('new_');
+
+            if (isLocal && assignItem.type === 'note') {
+                try {
+                    const storageKey = `studyflow_notes_${user.id}`;
+                    const localNotes = JSON.parse(localStorage.getItem(storageKey) || '[]');
+                    const note = localNotes.find((n: any) => n.id === realContentId);
+
+                    if (note) {
+                        const { data: uploadedNote, error: uploadError } = await supabase.from('notes').insert([{
+                            user_id: user.id,
+                            title: note.title,
+                            body_html: note.body_html,
+                            type: 'normal',
+                            institution_id: instId
+                        }]).select().maybeSingle();
+
+                        if (!uploadError && uploadedNote) {
+                            realContentId = (uploadedNote as any).id;
+                        }
+                    }
+                } catch (syncErr) {
+                    console.error("Note sync error:", syncErr);
+                }
+            }
+
+            // Supabase Insert
             const assignment = {
                 teacher_id: user.id,
                 institution_id: instId,
-                class_id: class_id,
+                class_id: classId,
+                content_id: realContentId,
                 title: assignItem.title,
                 type: assignItem.type,
-                due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                created_at: new Date().toISOString()
+                due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
             };
 
             const { error } = await supabase.from('assignments').insert([assignment]);
-
             if (error) throw error;
 
-            toast.success('Başarıyla atandı!');
+            toast.success(`"${assignItem.title}" başarıyla ${displayClassName} sınıfına atandı!`);
             setShowAssignModal(false);
             setAssignItem(null);
         } catch (e) {
             console.error("Atama hatası:", e);
             toast.error('Atama sırasında bir hata oluştu. Demo moduna geçiliyor.');
 
-            // Fallback
+            // Fallback to local
             const localAssignments = JSON.parse(localStorage.getItem('mock_assignments') || '[]');
             localAssignments.push({
                 id: 'mock_' + Date.now(),
                 title: assignItem.title,
                 type: assignItem.type,
-                class_id: class_id,
+                class_id: classId,
+                content_id: assignItem.id,
                 institution_id: localStorage.getItem('institution_id')
             });
             localStorage.setItem('mock_assignments', JSON.stringify(localAssignments));
@@ -1546,7 +1652,7 @@ const Dashboard: React.FC = () => {
                                     {teacherClasses.map((c) => (
                                         <button
                                             key={c.id}
-                                            onClick={() => handleHandleAssign(`${c.grade}-${c.branch}`)}
+                                            onClick={() => handleHandleAssign(c.id, `${c.grade}-${c.branch}`)}
                                             className="py-2 bg-[#0F0F12] border border-[#27272A] rounded-lg text-xs font-bold text-gray-400 hover:border-purple-500 hover:text-white transition-all"
                                         >
                                             {c.grade}-{c.branch}

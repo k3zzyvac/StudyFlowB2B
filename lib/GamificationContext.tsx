@@ -36,17 +36,17 @@ export const GamificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const fetchProfile = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data } = await supabase.from('profiles').select('xp, level').eq('user_id', user.id).single();
+        const { data } = await supabase.from('profiles').select('xp, level').eq('user_id', user.id).maybeSingle();
         if (data) {
           setXp(data.xp || 0);
           setLevel(data.level || 1);
         }
       } else {
-         // Guest Mode: Load from local storage
-         const localXP = parseInt(localStorage.getItem('guest_xp') || '0');
-         const localLevel = parseInt(localStorage.getItem('guest_level') || '1');
-         setXp(localXP);
-         setLevel(localLevel);
+        // Guest Mode: Load from local storage
+        const localXP = parseInt(localStorage.getItem('guest_xp') || '0');
+        const localLevel = parseInt(localStorage.getItem('guest_level') || '1');
+        setXp(localXP);
+        setLevel(localLevel);
       }
     };
     fetchProfile();
@@ -59,14 +59,14 @@ export const GamificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     // Level Atlama Kontrolü
     const requiredXp = newLevel * 250;
-    
+
     if (newXp >= requiredXp) {
       newLevel++;
-      newXp = newXp - requiredXp; 
+      newXp = newXp - requiredXp;
       leveledUp = true;
       setShowLevelUp(true);
-      const audio = new Audio('https://actions.google.com/sounds/v1/cartoon/clank_car_crash.ogg'); 
-      audio.play().catch(() => {});
+      const audio = new Audio('https://actions.google.com/sounds/v1/cartoon/clank_car_crash.ogg');
+      audio.play().catch(() => { });
     }
 
     setXp(newXp);
@@ -76,18 +76,18 @@ export const GamificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     if (user) {
       // 1. Profili Güncelle
       await supabase.from('profiles').update({ xp: newXp, level: newLevel }).eq('user_id', user.id);
-      
+
       // 2. Aktivite Loguna Ekle (Grafik için)
-      await supabase.from('activity_logs').insert([{ 
-          user_id: user.id, 
-          xp_amount: amount, 
-          action_type: reason 
+      await supabase.from('activity_logs').insert([{
+        user_id: user.id,
+        xp_amount: amount,
+        action_type: reason
       }]);
 
     } else {
-        // Guest Mode Save
-        localStorage.setItem('guest_xp', newXp.toString());
-        localStorage.setItem('guest_level', newLevel.toString());
+      // Guest Mode Save
+      localStorage.setItem('guest_xp', newXp.toString());
+      localStorage.setItem('guest_level', newLevel.toString());
     }
   };
 

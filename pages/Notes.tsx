@@ -54,10 +54,15 @@ const Notes: React.FC = () => {
                     setEditorTitle(foundLocal.title);
                 } else {
                     // 2. Fallback to Supabase (Old notes or different device sync attempt)
-                    const { data } = await supabase.from('notes').select('*').eq('id', noteId).single();
-                    if (data && editorRef.current) {
-                        editorRef.current.innerHTML = data.body_html;
-                        setEditorTitle(data.title);
+                    // ONLY query if it's a valid UUID to avoid 400 Bad Request errors
+                    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(noteId);
+
+                    if (isUuid) {
+                        const { data } = await supabase.from('notes').select('*').eq('id', noteId).maybeSingle();
+                        if (data && editorRef.current) {
+                            editorRef.current.innerHTML = data.body_html;
+                            setEditorTitle(data.title);
+                        }
                     } else {
                         // 3. Fallback to Guest Notes (Legacy)
                         const guestNotes = JSON.parse(localStorage.getItem('guest_notes') || '[]');
