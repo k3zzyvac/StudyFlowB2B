@@ -5,16 +5,9 @@ import { supabase } from '../lib/supabaseClient';
 import { useLanguage } from '../lib/LanguageContext';
 import { UserRole } from '../types';
 
-// ÖNCELİKLE TANIMLI ŞİFRELER ve KURUM EŞLEŞMELERİ
-// Her şifre benzersiz bir kuruma ve role eşleşir
-const STAFF_CREDENTIALS: Record<string, { role: UserRole; institutionName: string }> = {
-    // XYZ Kurumları
-    '444': { role: 'teacher', institutionName: 'XYZ Kurumları' },
-    '4444': { role: 'principal', institutionName: 'XYZ Kurumları' },
-    // ABC Kurumları
-    '333': { role: 'teacher', institutionName: 'ABC Kurumları' },
-    '3333': { role: 'principal', institutionName: 'ABC Kurumları' },
-};
+// --- PROFESSIONAL AUTH FLOW ---
+// Removed hardcoded STAFF_CREDENTIALS. 
+// Codes are now verified dynamically against the 'institutions' database table.
 
 interface Institution {
     id: string;
@@ -201,7 +194,10 @@ const Auth: React.FC = () => {
                     .replace(/[^a-z0-9]/g, '_');
             };
 
-            const email = `${normalizeString(username.trim())}@studyflow.com`;
+            const cleanUsername = normalizeString(username.trim());
+            // Multi-tenant email: ensures uniqueness across institutions
+            const email = `std_${cleanUsername}_${selectedInstitutionId}@studyflow.com`;
+
             const { data: authData, error: authError } = await supabase.auth.signUp({
                 email: email,
                 password: password,
@@ -296,14 +292,36 @@ const Auth: React.FC = () => {
                     .replace(/[^a-z0-9]/g, '_');
             };
 
-            const email = `${normalizeString(username.trim())}@studyflow.com`;
-            const { data, error } = await supabase.auth.signInWithPassword({
+            const cleanUsername = normalizeString(username.trim());
+            const email = `std_${cleanUsername}_${selectedInstitutionId}@studyflow.com`;
+
+            console.log(`[v2.2] Attempting student login for: ${username} in ${selectedInstitutionId}`);
+
+            let { data, error } = await supabase.auth.signInWithPassword({
                 email: email,
                 password: password
             });
 
+            // FALLBACK: Try old format if new format fails (Legacy support)
             if (error) {
-                setError('Giriş başarısız. Kullanıcı adı veya şifre hatalı.');
+                const legacyEmail = `${cleanUsername}@studyflow.com`;
+                const { data: legacyData, error: legacyError } = await supabase.auth.signInWithPassword({
+                    email: legacyEmail,
+                    password: password
+                });
+
+                if (!legacyError) {
+                    data = legacyData;
+                    error = null;
+                }
+            }
+
+            if (error) {
+                if (error.message.includes('Email not confirmed')) {
+                    setError('E-posta henüz onaylanmamış. Lütfen bekleyin veya yöneticinize danışın.');
+                } else {
+                    setError('Giriş başarısız. Kullanıcı adı veya şifre hatalı.');
+                }
                 setLoading(false);
                 return;
             }
@@ -378,31 +396,34 @@ const Auth: React.FC = () => {
         setError(null);
 
         try {
-            const staffInfo = STAFF_CREDENTIALS[staffPassword];
-            if (!staffInfo) {
+            // 1. DYNAMIC LOOKUP: find institution by code
+            // Check Principal code first
+            let { data: principalInst } = await supabase.from('institutions').select('*').eq('principal_code', staffPassword).maybeSingle();
+            let role: UserRole = 'principal';
+            let instMatch = principalInst;
+
+            if (!instMatch) {
+                // Try Teacher code
+                const { data: teacherInst } = await supabase.from('institutions').select('*').eq('teacher_code', staffPassword).maybeSingle();
+                if (teacherInst) {
+                    role = 'teacher';
+                    instMatch = teacherInst;
+                }
+            }
+
+            if (!instMatch) {
                 setError('Geçersiz kurum şifresi!');
                 setLoading(false);
                 return;
             }
 
-            // Map Code to Real Supabase Identity
-            const normalizeString = (str: string) => {
-                return str.toLowerCase()
-                    .replace(/ğ/g, 'g')
-                    .replace(/ü/g, 'u')
-                    .replace(/ş/g, 's')
-                    .replace(/ı/g, 'i')
-                    .replace(/i̇/g, 'i')
-                    .replace(/ö/g, 'o')
-                    .replace(/ç/g, 'c')
-                    .replace(/[^a-z0-9]/g, '_');
-            };
-
-            const normalizedInstName = normalizeString(staffInfo.institutionName);
-            const email = `${staffInfo.role}_${normalizedInstName}@studyflow.com`; // Changed .local to .com for validation
+            // Construct identity based on DB UUID (Safe & Professional)
+            const instId = instMatch.id;
+            const instName = instMatch.name;
+            const email = `${role}_${instId}@studyflow.com`;
             const securePassword = `studyflow_${staffPassword}`;
 
-            console.log('Attempting login with:', email);
+            console.log(`[v2.1] Attempting staff login for: ${instName} as ${role}`);
 
             // 1. Try Login
             const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
@@ -410,71 +431,31 @@ const Auth: React.FC = () => {
                 password: securePassword
             });
 
-            let user = signInData.user;
-            let error = signInError;
+            const user = signInData.user;
+            const error = signInError;
 
-            // 2. If User Not Found -> Auto Register (First time setup)
-            if (error && error.message.includes('Invalid login credentials')) {
-                console.log('User not found or pass wrong, attempting auto-provision for staff code...');
-
-                // Fetch Institution ID
-                const { data: instData } = await supabase.from('institutions').select('id').eq('name', staffInfo.institutionName).maybeSingle();
-                let instId = instData?.id;
-
-                // Create Institution if missing (Demo fallback)
-                if (!instId) {
-                    const { data: newInst } = await supabase.from('institutions').insert([{
-                        name: staffInfo.institutionName,
-                        teacher_code: staffInfo.role === 'teacher' ? staffPassword : '000',
-                        principal_code: staffInfo.role === 'principal' ? staffPassword : '000'
-                    }]).select().maybeSingle();
-                    instId = newInst?.id;
+            if (error) {
+                if (error.message.includes('Invalid login credentials')) {
+                    throw new Error('Geçersiz kurum şifresi veya kullanıcı bulunamadı.');
                 }
-
-                // Register
-                const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-                    email,
-                    password: securePassword,
-                    options: {
-                        data: {
-                            role: staffInfo.role,
-                            institution_id: instId,
-                            username: `${staffInfo.role}_${normalizedInstName}`
-                        }
-                    }
-                });
-
-                if (signUpError) throw signUpError;
-                user = signUpData.user;
-            } else if (error) {
                 throw error;
             }
 
             if (user) {
-                // Fetch Profile to ensure local storage sync
-                const { data: profile } = await supabase.from('profiles')
-                    .select('institution_id')
-                    .eq('user_id', user.id)
-                    .maybeSingle();
-
-                let instId = profile?.institution_id || user.user_metadata?.institution_id;
-
-                // FINAL RECOVERY: If still no ID, fetch by name from institutions table
-                if (!instId) {
-                    const { data: instData } = await supabase.from('institutions').select('id').eq('name', staffInfo.institutionName).maybeSingle();
-                    instId = instData?.id;
-                }
-
-                localStorage.setItem('user_role', staffInfo.role);
-                localStorage.setItem('institution_id', instId || '');
-                localStorage.setItem('institution_name', staffInfo.institutionName);
+                localStorage.setItem('user_role', role);
+                localStorage.setItem('institution_id', instId);
+                localStorage.setItem('institution_name', instName);
                 localStorage.setItem('staff_authenticated', 'true');
 
                 navigate('/');
             }
 
         } catch (err: any) {
-            setError(err.message || 'Giriş işlemi başarısız.');
+            if (err.status === 429 || err.message?.includes('seconds') || err.message?.includes('rate limit')) {
+                setError('Güvenlik nedeniyle şu an giriş yapılamıyor. Lütfen bir süre sonra tekrar deneyin.');
+            } else {
+                setError(err.message || 'Giriş işlemi başarısız.');
+            }
             console.error('Staff Login Error:', err);
         } finally {
             setLoading(false);

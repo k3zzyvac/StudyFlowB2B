@@ -742,6 +742,15 @@ const Dashboard: React.FC = () => {
 
     useEffect(() => {
         const fetchRole = async () => {
+            // --- SESSION CHECK ---
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                console.warn('[Dashboard] No active session. Redirecting...');
+                localStorage.clear();
+                navigate('/auth');
+                return;
+            }
+
             const localRole = localStorage.getItem('user_role') as UserRole;
             if (localRole) setRole(localRole);
 
