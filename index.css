@@ -128,107 +128,148 @@ body {
 }
 
 /* =========================================
-   🖨️ PDF & PRINT STYLES (V3 - STABLE)
+   🖨️ PDF & PRINT STYLES (Phase 1 - Final)
    ========================================= */
 
-/* 
-   When PDF mode is active, we don't hide the root.
-   We just style the printable areas to be clean.
-*/
+/* 1. Reset for PDF Generation */
 body.pdf-mode {
-    background: white !important;
-}
-
-/* Hiding non-printable elements without breaking the tree */
-body.pdf-mode header,
-body.pdf-mode .no-print,
-body.pdf-mode .sidebar,
-body.pdf-mode button:not(.pdf-close-btn),
-body.pdf-mode .chat-sidebar,
-body.pdf-mode .loading-overlay {
-    display: none !important;
-}
-
-/* --- BULLETPROOF PDF EXPORT (Absolute Origin Strategy) --- */
-
-/* 1. Global Reset: Clean White Canvas */
-body.pdf-mode,
-body.pdf-mode #root,
-body.pdf-mode main {
     background: white !important;
     margin: 0 !important;
     padding: 0 !important;
-    overflow: visible !important;
-    width: 100% !important;
-    display: block !important;
-    position: static !important;
+    width: 210mm !important;
+    color: black !important;
 }
 
-/* 2. Nuclear Hiding */
+body.pdf-mode .notebook-container {
+    padding: 0 !important;
+    background: white !important;
+    margin: 0 !important;
+}
+
+/* 2. Standard A4 Formatting (210mm x 297mm) */
+body.pdf-mode #printable-area,
+body.pdf-mode #exam-pdf-container {
+    background: white !important;
+    color: black !important;
+    padding: 20mm !important;
+    /* 20mm Margin per Phase 1 */
+    margin: 0 auto !important;
+    width: 210mm !important;
+    min-height: 297mm !important;
+    box-sizing: border-box !important;
+    box-shadow: none !important;
+    border: none !important;
+    font-size: 12pt !important;
+    /* 12pt Font per Phase 1 */
+    line-height: 1.5 !important;
+    font-family: 'Inter', 'Segoe UI', serif !important;
+    background-image: none !important;
+    /* Remove notebook lines */
+}
+
+/* 3. Global Color & Typography Reset for PDF (Black on White) */
+body.pdf-mode #printable-area *,
+body.pdf-mode #exam-pdf-container * {
+    color: black !important;
+    background-color: transparent !important;
+    border-color: #e5e7eb !important;
+    box-shadow: none !important;
+}
+
+body.pdf-mode p,
+body.pdf-mode li,
+body.pdf-mode td,
+body.pdf-mode span:not([class*="text-"]) {
+    font-size: 12pt !important;
+    color: black !important;
+}
+
+body.pdf-mode h1 {
+    font-size: 24pt !important;
+}
+
+body.pdf-mode h2 {
+    font-size: 18pt !important;
+}
+
+body.pdf-mode h3 {
+    font-size: 14pt !important;
+}
+
+
+/* Override AI specific dark mode wrappers */
+body.pdf-mode .note-frame,
+body.pdf-mode .summary-box,
+body.pdf-mode .quiz-box {
+    background: #f9fafb !important;
+    /* light subtle gray for boxes */
+    border: 1px solid #d1d5db !important;
+    color: black !important;
+    padding: 15pt !important;
+    margin-bottom: 20pt !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+}
+
+/* 4. Critical Page Break Handling */
+body.pdf-mode h1,
+body.pdf-mode h2,
+body.pdf-mode h3 {
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    margin-top: 20pt !important;
+    margin-bottom: 10pt !important;
+}
+
+body.pdf-mode table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    margin-bottom: 15pt !important;
+}
+
+body.pdf-mode tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+}
+
+body.pdf-mode p,
+body.pdf-mode li {
+    orphans: 3;
+    widows: 3;
+}
+
+body.pdf-mode img {
+    max-width: 100% !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+}
+
+/* Specific component protections */
+body.pdf-mode .exam-question-block,
+body.pdf-mode .note-block,
+body.pdf-mode blockquote,
+body.pdf-mode .tip,
+body.pdf-mode .warning {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    display: block !important;
+}
+
+/* 5. UI Hiding */
 body.pdf-mode header,
-body.pdf-mode .no-print,
+body.pdf-mode nav,
 body.pdf-mode .sidebar,
-body.pdf-mode .chat-sidebar,
-body.pdf-mode button:not(.pdf-close-btn),
+body.pdf-mode .no-print,
+body.pdf-mode .fixed.bottom-8,
 body.pdf-mode .loading-overlay {
     display: none !important;
 }
 
-/* 3. Target Container - Natural Flow (Most Reliable) */
-body.pdf-mode #printable-area,
-body.pdf-mode #exam-pdf-container {
-    background: white !important;
-    padding: 20mm !important;
-    margin: 0 auto !important;
-    /* Center the A4 sheet naturally */
-    width: 210mm !important;
-    min-height: 297mm !important;
-    display: block !important;
-    visibility: visible !important;
-    position: relative !important;
-    z-index: 1000 !important;
-    box-shadow: none !important;
-    border: none !important;
-    opacity: 1 !important;
-    box-sizing: border-box !important;
-}
-
-/* 4. Text & Color Preservation */
-body.pdf-mode #printable-area *,
-body.pdf-mode #exam-pdf-container * {
-    visibility: visible !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-}
-
-/* Restore Question Numbers (White text on black background) */
-body.pdf-mode .bg-black {
-    background-color: black !important;
-    color: white !important;
-}
-
-/* Base text color: black (unforced to allow style overrides) */
-body.pdf-mode #printable-area,
-body.pdf-mode #exam-pdf-container,
-body.pdf-mode #printable-area p,
-body.pdf-mode #printable-area span,
-body.pdf-mode #exam-pdf-container p,
-body.pdf-mode #exam-pdf-container span {
-    color: black;
-}
-
-/* Preserve colored text/highlights from AI and Editor */
-body.pdf-mode [style*="color"],
-body.pdf-mode [class*="text-"]:not(.text-white) {
-    color: inherit !important;
-}
-
-body.pdf-mode [style*="background"],
-body.pdf-mode [class*="bg-"]:not(.bg-black) {
-    background-color: inherit !important;
-}
-
-/* 5. Reveal hidden Exam container - move to top of document */
+/* Reveal hidden fixed container for exam */
 body.pdf-mode .fixed.left-\[-9999px\] {
     left: 0 !important;
     top: 0 !important;
@@ -238,32 +279,25 @@ body.pdf-mode .fixed.left-\[-9999px\] {
     width: 100% !important;
 }
 
-/* Heading visibility */
-body.pdf-mode h1,
-body.pdf-mode h2,
-body.pdf-mode h3,
-body.pdf-mode h4 {
-    color: inherit !important;
+/* Force standard black/white for specific highlights if needed */
+body.pdf-mode .bg-black {
+    background-color: #27272a !important;
+    color: white !important;
 }
 
-
-
-/* Exam specific question blocks */
-.exam-question-block {
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-    margin-bottom: 25px;
-    display: block !important;
+body.pdf-mode .bg-green-600\/20 {
+    background-color: #f0fdf4 !important;
+    border-color: #16a34a !important;
 }
 
-/* Mermaid MindMaps in PDF */
+body.pdf-mode .bg-red-600\/20 {
+    background-color: #fef2f2 !important;
+    border-color: #dc2626 !important;
+}
+
+/* Mermaid / Chart adjustments */
 body.pdf-mode .mermaid {
     background: white !important;
-}
-
-/* Page Break Helper */
-.html2pdf__page-break {
-    display: block;
-    height: 0;
-    page-break-before: always;
+    padding: 10mm;
+    break-inside: avoid !important;
 }

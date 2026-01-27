@@ -70,26 +70,8 @@ const Sidebar: React.FC = () => {
           <i className="fas fa-feather-alt text-[var(--primary-purple)]"></i>
         </div>
 
-        {role === 'student' && (
-          <div className="mb-6 flex flex-col items-center group cursor-help relative">
-            <div className="w-9 h-9 rounded-full border-2 border-yellow-500 flex items-center justify-center text-[10px] font-bold text-yellow-500 mb-1 bg-yellow-500/10">
-              {level}
-            </div>
-            {/* XP BAR VERTICAL */}
-            <div className="w-1.5 h-12 bg-[#27272A] rounded-full overflow-hidden flex items-end">
-              <div className="w-full bg-gradient-to-t from-yellow-600 to-yellow-400 transition-all duration-500" style={{ height: `${progressPercent}%` }}></div>
-            </div>
-            {/* Tooltip */}
-            <div className="absolute left-12 top-0 bg-[#18181B] border border-yellow-500/30 p-3 rounded-xl text-xs w-40 hidden group-hover:block z-[60] shadow-2xl backdrop-blur-md">
-              <div className="text-white font-bold text-sm mb-1">{t('level')} {level}</div>
-              <div className="text-yellow-400 font-bold uppercase tracking-wide text-[10px] mb-2">{rankTitle}</div>
-              <div className="w-full h-1.5 bg-[#27272A] rounded-full mb-1">
-                <div className="h-full bg-yellow-500 rounded-full" style={{ width: `${progressPercent}%` }}></div>
-              </div>
-              <div className="text-gray-400 text-[10px] text-right">{xp} / {nextLevelXp} XP</div>
-            </div>
-          </div>
-        )}
+        {/* Gamification removed for B2B */}
+
 
         <nav className="flex flex-col gap-6 w-full items-center">
           {navItems.map((item, idx) => {

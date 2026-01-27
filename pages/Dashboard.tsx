@@ -45,9 +45,10 @@ const StudentDashboard: React.FC<{
     assignments: any[],
     onAssignmentClick: (assignment: any) => void,
     institutionName: string,
+    institutionLogo: string | null,
     classDisplay: string,
     userName: string
-}> = ({ notes, xp, level, nextLevelXp, onNoteClick, onDeleteNote, onShareNote, onNewNote, onUploadPdf, fileInputRef, assignments, onAssignmentClick, institutionName, classDisplay, userName }) => {
+}> = ({ notes, xp, level, nextLevelXp, onNoteClick, onDeleteNote, onShareNote, onNewNote, onUploadPdf, fileInputRef, assignments, onAssignmentClick, institutionName, institutionLogo, classDisplay, userName }) => {
 
     const { t } = useLanguage();
 
@@ -57,9 +58,13 @@ const StudentDashboard: React.FC<{
             <div className="bg-gradient-to-r from-purple-900/20 to-indigo-900/20 border border-purple-500/20 rounded-2xl p-6">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 bg-purple-600 rounded-2xl flex items-center justify-center text-white text-2xl font-black">
-                            <i className="fas fa-user-graduate"></i>
-                        </div>
+                        {institutionLogo ? (
+                            <img src={institutionLogo} alt="Logo" className="w-14 h-14 object-contain rounded-2xl bg-white p-1 shadow-lg" />
+                        ) : (
+                            <div className="w-14 h-14 bg-purple-600 rounded-2xl flex items-center justify-center text-white text-2xl font-black">
+                                <i className="fas fa-user-graduate"></i>
+                            </div>
+                        )}
                         <div>
                             <h2 className="text-white font-bold text-lg">{userName}</h2>
                             <p className="text-purple-400 text-sm font-medium">
@@ -71,9 +76,8 @@ const StudentDashboard: React.FC<{
                         </div>
                     </div>
                     <div className="text-right">
-                        <div className="text-3xl font-black text-purple-400">{xp}</div>
-                        <div className="text-[10px] text-gray-500 uppercase tracking-wider">Toplam XP</div>
-                        <div className="text-xs text-gray-400 mt-1">Seviye {level}</div>
+                        <div className="text-xs text-gray-400 mt-1 uppercase tracking-widest font-bold">Öğrenci Paneli</div>
+                        <div className="text-[10px] text-gray-500">StudyFlow Pro</div>
                     </div>
                 </div>
             </div>
@@ -172,15 +176,25 @@ const TeacherDashboard: React.FC<{
     notes: Note[],
     onAssignOpen: (id: string, type: 'note' | 'exam', title: string) => void,
     onNoteClick: (note: Note) => void,
-    institutionName: string
-}> = ({ onAiNoteGen, onExamGen, onClassLog, notes, onAssignOpen, onNoteClick, institutionName }) => {
+    institutionName: string,
+    institutionLogo: string | null
+}> = ({ onAiNoteGen, onExamGen, onClassLog, notes, onAssignOpen, onNoteClick, institutionName, institutionLogo }) => {
     return (
         <div className="flex flex-col gap-8 h-full overflow-y-auto p-4 md:p-8">
-            <div>
-                <h2 className="text-2xl font-bold text-white mb-1">Öğretmen Paneli</h2>
-                <p className="text-indigo-400 text-sm font-bold">
-                    <i className="fas fa-building mr-2"></i>{institutionName}
-                </p>
+            <div className="flex items-center gap-4">
+                {institutionLogo ? (
+                    <img src={institutionLogo} alt="Logo" className="w-14 h-14 object-contain rounded-2xl bg-white p-1 shadow-lg" />
+                ) : (
+                    <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white text-2xl font-black">
+                        <i className="fas fa-chalkboard-teacher"></i>
+                    </div>
+                )}
+                <div>
+                    <h2 className="text-2xl font-bold text-white mb-1">Öğretmen Paneli</h2>
+                    <p className="text-indigo-400 text-sm font-bold">
+                        <i className="fas fa-building mr-2"></i>{institutionName}
+                    </p>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -274,7 +288,7 @@ const TeacherDashboard: React.FC<{
 };
 
 // --- PRINCIPAL DASHBOARD ---
-const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChange: () => void, institutionName: string }> = ({ weeklyReports: initialReports, onClassChange, institutionName }) => {
+const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChange: () => void, institutionName: string, institutionLogo: string | null }> = ({ weeklyReports: initialReports, onClassChange, institutionName, institutionLogo }) => {
     const [reports, setReports] = useState<WeeklyReport[]>([]);
     const [classList, setClassList] = useState<SchoolClass[]>([]);
     const [showAddClassModal, setShowAddClassModal] = useState(false);
@@ -436,9 +450,12 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
         // PDF için Beyaz Arka Plan, Siyah Yazı (Light Mode)
         element.innerHTML = `
             <div style="padding: 40px; font-family: 'Segoe UI', Arial, sans-serif; background: white !important; color: black !important; width: 100%;">
-                <div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 20px; margin-bottom: 30px;">
-                    <h1 style="margin: 0; font-size: 24px; color: #000; font-weight: 900; letter-spacing: 1px;">GÜNLÜK SINIF RAPORU</h1>
-                    <p style="margin: 5px 0; color: #444; font-size: 14px;">${getSelectedClassLabel()} | ${dateStr} | ${institutionName}</p>
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #000; padding-bottom: 20px; margin-bottom: 30px;">
+                    <div style="text-align: left;">
+                        <h1 style="margin: 0; font-size: 24px; color: #000; font-weight: 900; letter-spacing: 1px;">GÜNLÜK SINIF RAPORU</h1>
+                        <p style="margin: 5px 0; color: #444; font-size: 14px;">${getSelectedClassLabel()} | ${dateStr} | ${institutionName}</p>
+                    </div>
+                    ${institutionLogo ? `<img src="${institutionLogo}" crossOrigin="anonymous" style="height: 60px; object-fit: contain;" />` : ''}
                 </div>
                 <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; border: 1px solid #000;">
                     <thead>
@@ -485,9 +502,12 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
         // PDF için Beyaz Arka Plan, Siyah Yazı (Light Mode)
         element.innerHTML = `
             <div style="padding: 50px; font-family: 'Segoe UI', Arial, sans-serif; background: white !important; color: black !important; width: 100%;">
-                <div style="text-align: center; border-bottom: 3px solid #000; padding-bottom: 20px; margin-bottom: 40px;">
-                    <h1 style="margin: 0; font-size: 28px; color: #000; font-weight: 900; letter-spacing: 2px;">DERS DEĞERLENDİRME FORMU</h1>
-                    <p style="margin: 10px 0 0; color: #444; font-size: 14px; font-weight: bold;">STUDYFLOW EĞİTİM YÖNETİM SİSTEMİ</p>
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #000; padding-bottom: 20px; margin-bottom: 40px;">
+                    <div style="text-align: left;">
+                        <h1 style="margin: 0; font-size: 28px; color: #000; font-weight: 900; letter-spacing: 2px;">DERS DEĞERLENDİRME FORMU</h1>
+                        <p style="margin: 10px 0 0; color: #444; font-size: 14px; font-weight: bold;">STUDYFLOW EĞİTİM YÖNETİM SİSTEMİ</p>
+                    </div>
+                    ${institutionLogo ? `<img src="${institutionLogo}" crossOrigin="anonymous" style="height: 70px; object-fit: contain;" />` : ''}
                 </div>
                 
                 <div style="display: grid; grid-template-cols: 1fr 1fr; gap: 30px; margin-bottom: 40px; border: 1px solid #000; padding: 20px; border-radius: 4px;">
@@ -536,16 +556,78 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
     return (
         <div className="flex flex-col gap-8 h-full overflow-y-auto p-4 md:p-8 bg-[#09090B]">
             <header className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-2xl font-black text-white tracking-tight">YÖNETİM PANELİ</h2>
-                    <p className="text-purple-400 text-sm font-bold">
-                        <i className="fas fa-building mr-2"></i>{institutionName}
-                    </p>
-                    <p className="text-gray-500 text-xs mt-1">
-                        {viewMode === 'classes' && 'Sınıf Listesi'}
-                        {viewMode === 'dates' && `${getSelectedClassLabel()} - Günlük Raporlar`}
-                        {viewMode === 'reports' && `${getSelectedClassLabel()} - ${new Date(selectedDate).toLocaleDateString('tr-TR')} Raporları`}
-                    </p>
+                <div className="flex items-center gap-4">
+                    <div
+                        onClick={() => {
+                            const input = document.createElement('input');
+                            input.type = 'file';
+                            input.accept = 'image/*';
+                            input.onchange = async (e: any) => {
+                                const file = e.target.files[0];
+                                if (!file) return;
+
+                                try {
+                                    const instId = localStorage.getItem('institution_id');
+                                    if (!instId) {
+                                        toast.error("Kurum ID bulunamadı");
+                                        return;
+                                    }
+
+                                    const fileExt = file.name.split('.').pop();
+                                    const fileName = `${instId}_logo_${Date.now()}.${fileExt}`;
+                                    const filePath = `${fileName}`;
+
+                                    const { error: uploadError } = await supabase.storage
+                                        .from('logos')
+                                        .upload(filePath, file);
+
+                                    if (uploadError) throw uploadError;
+
+                                    const { data: { publicUrl } } = supabase.storage
+                                        .from('logos')
+                                        .getPublicUrl(filePath);
+
+                                    const { error: updateError } = await supabase
+                                        .from('institutions')
+                                        .update({ logo_url: publicUrl })
+                                        .eq('id', instId);
+
+                                    if (updateError) throw updateError;
+
+                                    toast.success("Logo başarıyla güncellendi");
+                                    window.location.reload();
+                                } catch (err: any) {
+                                    console.error("Logo upload error:", err);
+                                    toast.error("Logo yüklenirken hata oluştu");
+                                }
+                            };
+                            input.click();
+                        }}
+                        className="cursor-pointer group relative"
+                        title="Logo Değiştir"
+                    >
+                        {institutionLogo ? (
+                            <img src={institutionLogo} alt="Logo" className="w-16 h-16 object-contain rounded-2xl bg-white p-1 shadow-lg group-hover:opacity-80 transition-opacity" />
+                        ) : (
+                            <div className="w-16 h-16 bg-purple-600 rounded-2xl flex items-center justify-center text-white text-3xl font-black group-hover:bg-purple-700 transition-colors">
+                                <i className="fas fa-building"></i>
+                            </div>
+                        )}
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity">
+                            <i className="fas fa-camera text-white text-sm"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <h2 className="text-2xl font-black text-white tracking-tight text-white mb-0">YÖNETİM PANELİ</h2>
+                        <p className="text-purple-400 text-sm font-bold flex items-center gap-2">
+                            {institutionName}
+                        </p>
+                        <p className="text-gray-500 text-xs mt-1">
+                            {viewMode === 'classes' && 'Sınıf Listesi'}
+                            {viewMode === 'dates' && `${getSelectedClassLabel()} - Günlük Raporlar`}
+                            {viewMode === 'reports' && `${getSelectedClassLabel()} - ${new Date(selectedDate).toLocaleDateString('tr-TR')} Raporları`}
+                        </p>
+                    </div>
                 </div>
                 {viewMode !== 'classes' && (
                     <button onClick={() => {
@@ -638,7 +720,12 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
                             <h1 className="text-2xl font-black text-gray-900">RAPOR DETAYI</h1>
                             <p className="text-gray-500">{new Date(activeReport.date).toLocaleDateString('tr-TR')}</p>
                         </div>
-                        <button onClick={() => generateDetailPDF(activeReport)} className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-black"><i className="fas fa-download mr-1"></i> İndir</button>
+                        <div className="flex items-center gap-4">
+                            {institutionLogo && <img src={institutionLogo} alt="Logo" className="h-12 object-contain" />}
+                            <button onClick={() => generateDetailPDF(activeReport)} className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-black flex items-center gap-2">
+                                <i className="fas fa-download"></i> İndir
+                            </button>
+                        </div>
                     </div>
                     <div className="space-y-6">
                         <div className="grid grid-cols-2 gap-4">
@@ -739,6 +826,9 @@ const Dashboard: React.FC = () => {
     const [showAssignModal, setShowAssignModal] = useState(false);
     const [assignItem, setAssignItem] = useState<{ id: string, type: 'note' | 'exam', title: string } | null>(null);
     const [assignments, setAssignments] = useState<any[]>([]);
+    const [usageStats, setUsageStats] = useState({ count: 0, lastReset: '' });
+    const [institutionName, setInstitutionName] = useState<string>(localStorage.getItem('institution_name') || 'Kurum');
+    const [institutionLogo, setInstitutionLogo] = useState<string | null>(localStorage.getItem('institution_logo'));
 
     useEffect(() => {
         const fetchRole = async () => {
@@ -756,7 +846,7 @@ const Dashboard: React.FC = () => {
 
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
-                let { data, error } = await supabase.from('profiles').select('role, username, class_id, institution_id').eq('user_id', user.id).maybeSingle();
+                let { data, error } = await supabase.from('profiles').select('role, username, class_id, institution_id, daily_usage_count, last_usage_reset').eq('user_id', user.id).maybeSingle();
 
                 // FALLBACK: If profile record is missing (common during DB resets/mismatches)
                 if (!data || error) {
@@ -765,15 +855,40 @@ const Dashboard: React.FC = () => {
                         role: user.user_metadata?.role || localRole || 'student',
                         username: user.user_metadata?.username || user.email?.split('@')[0],
                         institution_id: user.user_metadata?.institution_id || localStorage.getItem('institution_id'),
-                        class_id: user.user_metadata?.class_id || localStorage.getItem('user_class_id')
+                        class_id: user.user_metadata?.class_id || localStorage.getItem('user_class_id'),
+                        daily_usage_count: 0,
+                        last_usage_reset: new Date().toISOString()
                     };
                 }
 
                 if (data) {
                     setRole(data.role as UserRole);
                     if (data.username) setUserName(data.username);
+
+                    // --- USAGE LIMIT LOGIC ---
+                    const today = new Date().toISOString().split('T')[0];
+                    const lastResetDate = data.last_usage_reset ? new Date(data.last_usage_reset).toISOString().split('T')[0] : '';
+
+                    if (lastResetDate !== today) {
+                        // Reset count for new day
+                        setUsageStats({ count: 0, lastReset: today });
+                        await supabase.from('profiles').update({ daily_usage_count: 0, last_usage_reset: new Date().toISOString() }).eq('user_id', user.id);
+                    } else {
+                        setUsageStats({ count: data.daily_usage_count || 0, lastReset: data.last_usage_reset });
+                    }
+
                     if (data.institution_id) {
                         localStorage.setItem('institution_id', data.institution_id);
+                        // Fetch inst name & logo if possible
+                        const { data: instData } = await supabase.from('institutions').select('name, logo_url').eq('id', data.institution_id).maybeSingle();
+                        if (instData) {
+                            setInstitutionName(instData.name);
+                            localStorage.setItem('institution_name', instData.name);
+                            if (instData.logo_url) {
+                                setInstitutionLogo(instData.logo_url);
+                                localStorage.setItem('institution_logo', instData.logo_url);
+                            }
+                        }
                     }
                     if (data.class_id) {
                         localStorage.setItem('user_class_id', data.class_id);
@@ -1174,7 +1289,7 @@ const Dashboard: React.FC = () => {
             }
 
             // Recovery for institution_id
-            if (!instId || instId.startsWith('demo-')) {
+            if (!instId || instId === 'null' || instId.startsWith('demo-')) {
                 const { data: prof } = await supabase.from('profiles').select('institution_id').eq('user_id', user.id).maybeSingle();
                 if (prof?.institution_id) {
                     instId = prof.institution_id;
@@ -1186,7 +1301,7 @@ const Dashboard: React.FC = () => {
             }
 
             // LOCAL/DEMO MODE fallback if still no real ID
-            if (!instId || instId.startsWith('demo-')) {
+            if (!instId || instId === 'null' || instId.startsWith('demo-')) {
                 const localAssignments = JSON.parse(localStorage.getItem('mock_assignments') || '[]');
                 const newAssignment = {
                     id: 'demo_' + Date.now(),
@@ -1208,7 +1323,7 @@ const Dashboard: React.FC = () => {
 
             // --- SYNC LOCAL NOTE TO DB BEFORE ASSIGNING ---
             let realContentId = assignItem.id;
-            const isLocal = realContentId.startsWith('ai_') || realContentId.startsWith('loc_') || realContentId.startsWith('new_');
+            const isLocal = realContentId.startsWith('ai_') || realContentId.startsWith('loc_') || realContentId.startsWith('new_') || realContentId.startsWith('note_');
 
             if (isLocal && assignItem.type === 'note') {
                 try {
@@ -1225,7 +1340,9 @@ const Dashboard: React.FC = () => {
                             institution_id: instId
                         }]).select().maybeSingle();
 
-                        if (!uploadError && uploadedNote) {
+                        if (uploadError) {
+                            console.error("Note upload failed during assignment:", uploadError);
+                        } else if (uploadedNote) {
                             realContentId = (uploadedNote as any).id;
                         }
                     }
@@ -1239,7 +1356,7 @@ const Dashboard: React.FC = () => {
                 teacher_id: user.id,
                 institution_id: instId,
                 class_id: classId,
-                content_id: realContentId,
+                content_id: realContentId || assignItem.id,
                 title: assignItem.title,
                 type: assignItem.type,
                 due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
@@ -1251,9 +1368,10 @@ const Dashboard: React.FC = () => {
             toast.success(`"${assignItem.title}" başarıyla ${displayClassName} sınıfına atandı!`);
             setShowAssignModal(false);
             setAssignItem(null);
-        } catch (e) {
-            console.error("Atama hatası:", e);
-            toast.error('Atama sırasında bir hata oluştu. Demo moduna geçiliyor.');
+        } catch (e: any) {
+            console.error("Atama tam hatası:", e);
+            const errorMsg = e.message || "Bilinmeyen bir hata oluştu";
+            toast.error(`Atama Hatası: ${errorMsg}. Demo moduna geçiliyor.`);
 
             // Fallback to local
             const localAssignments = JSON.parse(localStorage.getItem('mock_assignments') || '[]');
@@ -1316,13 +1434,24 @@ const Dashboard: React.FC = () => {
             setManualTitle('');
         } else {
             if (!aiTopic) { alert("Konu zorunlu."); return; }
+
+            // USAGE CHECK
+            if (role === 'student' && usageStats.count >= 5) {
+                toast.error("Günlük AI kullanım limitine ulaştınız (5/5).");
+                return;
+            }
+
             setShowNewNoteModal(false);
             setLoadingOverlay({ show: true, msg: t('ai_thinking') });
             try {
                 const html = await aiHelper.generateNote(aiTopic, aiGrade, aiDetails, language);
+
+                await incrementUsage();
+
                 setLoadingOverlay({ show: false, msg: '' });
                 const { data: { user } } = await supabase.auth.getUser();
                 const userId = user ? user.id : 'guest';
+                // ... rest of the logic
 
                 // HYBRID/OFFLINE MODE: Save to LocalStorage
                 const newId = 'ai_' + Date.now();
@@ -1402,8 +1531,18 @@ const Dashboard: React.FC = () => {
         reader.onload = async (re) => {
             const base64 = re.target?.result as string;
             try {
+                // USAGE CHECK
+                if (role === 'student' && usageStats.count >= 5) {
+                    toast.error("Günlük AI kullanım limitine ulaştınız (5/5).");
+                    setLoadingOverlay({ show: false, msg: "" });
+                    return;
+                }
+
                 const cleanBase64 = base64.split(',')[1];
                 const html = await aiHelper.analyzePdf(cleanBase64, language);
+
+                await incrementUsage();
+
                 setLoadingOverlay({ show: false, msg: "" }); // Yükleme bitti
                 toast.success('PDF analizi tamamlandı');
                 addXp(150);
@@ -1416,9 +1555,20 @@ const Dashboard: React.FC = () => {
         reader.readAsDataURL(file);
     };
 
+    const incrementUsage = async () => {
+        if (role !== 'student') return;
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const newCount = usageStats.count + 1;
+        setUsageStats({ ...usageStats, count: newCount });
+
+        await supabase.from('profiles').update({ daily_usage_count: newCount }).eq('user_id', user.id);
+    };
+
     if (role === 'principal') {
         const institutionName = localStorage.getItem('institution_name') || 'Bilinmeyen Kurum';
-        return <PrincipalDashboard weeklyReports={weeklyReports} onClassChange={fetchTeacherClasses} institutionName={institutionName} />;
+        return <PrincipalDashboard weeklyReports={weeklyReports} onClassChange={fetchTeacherClasses} institutionName={institutionName} institutionLogo={institutionLogo} />;
     }
 
     return (
@@ -1683,7 +1833,8 @@ const Dashboard: React.FC = () => {
                 <PrincipalDashboard
                     weeklyReports={weeklyReports}
                     onClassChange={() => { }}
-                    institutionName={localStorage.getItem('institution_name') || 'Kurum'}
+                    institutionName={institutionName}
+                    institutionLogo={institutionLogo}
                 />
             ) : role === 'teacher' ? (
                 <TeacherDashboard
@@ -1693,7 +1844,8 @@ const Dashboard: React.FC = () => {
                     notes={notes}
                     onAssignOpen={(id, type, title) => { setAssignItem({ id, type, title }); setShowAssignModal(true); }}
                     onNoteClick={handleNoteClick}
-                    institutionName={localStorage.getItem('institution_name') || 'Bilinmeyen Kurum'}
+                    institutionName={institutionName}
+                    institutionLogo={institutionLogo}
                 />
             ) : (
                 <StudentDashboard
@@ -1709,7 +1861,8 @@ const Dashboard: React.FC = () => {
                     fileInputRef={fileInputRef}
                     assignments={assignments}
                     onAssignmentClick={handleAssignmentClick}
-                    institutionName={localStorage.getItem('institution_name') || 'Bilinmeyen Kurum'}
+                    institutionName={institutionName}
+                    institutionLogo={institutionLogo}
                     classDisplay={localStorage.getItem('class_display') || 'Sınıf Belirlenmedi'}
                     userName={userName}
                 />
