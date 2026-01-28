@@ -1,16 +1,13 @@
-
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useLanguage } from '../lib/LanguageContext';
-import { useGamification } from '../lib/GamificationContext';
 import { UserRole } from '../types';
 
 const Sidebar: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useLanguage();
-  const { xp, level, rankTitle, nextLevelXp } = useGamification();
   const [role, setRole] = useState<UserRole>('student');
 
   useEffect(() => {
@@ -61,17 +58,12 @@ const Sidebar: React.FC = () => {
   if (role === 'teacher') navItems = teacherNav;
   if (role === 'principal') navItems = principalNav;
 
-  const progressPercent = Math.min(100, Math.max(0, (xp / nextLevelXp) * 100));
-
   return (
     <>
       <aside className="hidden md:flex fixed left-0 top-0 h-screen w-[60px] bg-[var(--bg-main)] border-r border-[var(--border-color)] flex-col items-center py-6 z-50">
         <div className="mb-8 text-white text-xl">
           <i className="fas fa-feather-alt text-[var(--primary-purple)]"></i>
         </div>
-
-        {/* Gamification removed for B2B */}
-
 
         <nav className="flex flex-col gap-6 w-full items-center">
           {navItems.map((item, idx) => {

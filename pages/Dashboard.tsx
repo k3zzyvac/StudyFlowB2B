@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabaseClient';
 import { Note, NoteType, UserRole, SchoolClass, WeeklyReport } from '../types';
 import { aiHelper } from '../lib/aiHelper';
 import { useLanguage } from '../lib/LanguageContext';
-import { useGamification } from '../lib/GamificationContext';
+import { PrincipalCharts } from '../components/PrincipalCharts';
 import { Toaster } from 'react-hot-toast';
 import toast from 'react-hot-toast';
 
@@ -33,9 +33,6 @@ const NoteRow: React.FC<{ note: Note, onClick: () => void, onShare: (e: any) => 
 // --- STUDENT COMPONENTS & LOGIC ---
 const StudentDashboard: React.FC<{
     notes: Note[],
-    xp: number,
-    level: number,
-    nextLevelXp: number,
     onNoteClick: (note: Note) => void,
     onDeleteNote: (id: string) => void,
     onShareNote: (id: string) => void,
@@ -48,7 +45,7 @@ const StudentDashboard: React.FC<{
     institutionLogo: string | null,
     classDisplay: string,
     userName: string
-}> = ({ notes, xp, level, nextLevelXp, onNoteClick, onDeleteNote, onShareNote, onNewNote, onUploadPdf, fileInputRef, assignments, onAssignmentClick, institutionName, institutionLogo, classDisplay, userName }) => {
+}> = ({ notes, onNoteClick, onDeleteNote, onShareNote, onNewNote, onUploadPdf, fileInputRef, assignments, onAssignmentClick, institutionName, institutionLogo, classDisplay, userName }) => {
 
     const { t } = useLanguage();
 
@@ -303,11 +300,95 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
     // Sınıf Ekleme State'leri
     const [newClassGrade, setNewClassGrade] = useState('9');
     const [newClassBranch, setNewClassBranch] = useState('A');
+    const [analyticsData, setAnalyticsData] = useState({
+        classDensity: [] as { name: string, value: number, color: string }[],
+        assignmentTrend: [] as { day: string, count: number }[],
+        activeRatio: { active: 0, total: 0 },
+        totals: { students: 0, teachers: 0, classes: 0, reports: 0 }
+    });
 
     useEffect(() => {
         fetchClasses();
         setReports(initialReports);
+        fetchAnalytics();
     }, [initialReports, institutionName]);
+
+    const fetchAnalytics = async () => {
+        let instId = localStorage.getItem('institution_id');
+
+        // Reliability: Get institution_id from profile if missing from localStorage
+        if (!instId || instId === 'null') {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                const { data: prof } = await supabase.from('profiles').select('institution_id').eq('user_id', user.id).maybeSingle();
+                if (prof?.institution_id) {
+                    instId = prof.institution_id;
+                    localStorage.setItem('institution_id', instId as string);
+                }
+            }
+        }
+
+        if (!instId) return;
+
+        try {
+            // 1. Class Density
+            const { data: students } = await supabase.from('profiles').select('class_id').eq('institution_id', instId).eq('role', 'student');
+            const { data: classes } = await supabase.from('classes').select('id, grade, branch').eq('institution_id', instId);
+
+            if (students && classes) {
+                const colors = ['#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#EC4899'];
+                const density = classes.map((c, i) => ({
+                    name: `${c.grade}-${c.branch}`,
+                    value: students.filter(s => s.class_id === c.id).length,
+                    color: colors[i % colors.length]
+                })).filter(d => d.value > 0);
+                setAnalyticsData(prev => ({ ...prev, classDensity: density }));
+            }
+
+            // 2. Assignment Trend (Last 7 Days)
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+            const { data: assignments } = await supabase.from('assignments').select('created_at').eq('institution_id', instId).gte('created_at', sevenDaysAgo.toISOString());
+
+            if (assignments) {
+                const days = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
+                const trend = Array.from({ length: 7 }).map((_, i) => {
+                    const d = new Date();
+                    d.setDate(d.getDate() - (6 - i));
+                    const dayName = days[d.getDay()];
+                    const count = assignments.filter(a => new Date(a.created_at).toDateString() === d.toDateString()).length;
+                    return { day: dayName, count };
+                });
+                setAnalyticsData(prev => ({ ...prev, assignmentTrend: trend }));
+            }
+
+            // 3. Active Ratio (Used AI today)
+            const today = new Date().toISOString().split('T')[0];
+            const { data: allStudents } = await supabase.from('profiles').select('last_usage_reset').eq('institution_id', instId).eq('role', 'student');
+            if (allStudents) {
+                const active = allStudents.filter(s => s.last_usage_reset && s.last_usage_reset.startsWith(today)).length;
+                setAnalyticsData(prev => ({ ...prev, activeRatio: { active, total: allStudents.length } }));
+            }
+
+            // 4. Totals for Summary Cards
+            const { count: studentCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('institution_id', instId).eq('role', 'student');
+            const { count: teacherCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('institution_id', instId).eq('role', 'teacher');
+            const { count: classCount } = await supabase.from('classes').select('*', { count: 'exact', head: true }).eq('institution_id', instId);
+            const { count: reportCount } = await supabase.from('weekly_reports').select('*', { count: 'exact', head: true }).eq('institution_id', instId);
+
+            setAnalyticsData(prev => ({
+                ...prev,
+                totals: {
+                    students: studentCount || 0,
+                    teachers: teacherCount || 0,
+                    classes: classCount || 0,
+                    reports: reportCount || 0
+                }
+            }));
+        } catch (e) {
+            console.error("Analytics fetch fail", e);
+        }
+    };
 
     const getSelectedClassLabel = () => {
         const cls = classList.find(c => c.id === selectedClass);
@@ -639,26 +720,10 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
                             <i className="fas fa-arrow-left"></i> Geri
                         </button>
                     )}
-                    {/* Diagnostic Button (Temporary) */}
-                    <button
-                        onClick={async () => {
-                            const loadingToast = toast.loading("AI Sistemleri test ediliyor...");
-                            try {
-                                const results = await aiHelper.runDiagnostics();
-                                toast.dismiss(loadingToast);
-                                toast.success(`Gemini: ${results.gemini}\nGroq: ${results.groq}`, { duration: 5000 });
-                            } catch (e) {
-                                toast.dismiss(loadingToast);
-                                toast.error("Test sırasında kritik hata!");
-                            }
-                        }}
-                        className="bg-white/5 hover:bg-white/10 text-zinc-500 hover:text-white p-2 rounded-lg transition-all text-xs flex items-center gap-2"
-                        title="Sistem Testi"
-                    >
-                        <i className="fas fa-vial"></i> Test
-                    </button>
                 </div>
             </header>
+
+            <PrincipalCharts data={analyticsData} />
 
             {viewMode === 'classes' && (
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 animate-fade-in">
@@ -815,7 +880,6 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
 const Dashboard: React.FC = () => {
     const navigate = useNavigate();
     const { t, language } = useLanguage();
-    const { xp, level, nextLevelXp, addXp } = useGamification();
     const [role, setRole] = useState<UserRole>('student');
     const [userName, setUserName] = useState('Öğrenci'); // Default value
     const [notes, setNotes] = useState<Note[]>([]);
@@ -1495,7 +1559,7 @@ const Dashboard: React.FC = () => {
                 setNotes(localNotes);
 
                 toast.success('AI notu oluşturuldu');
-                await addXp(250, 'note_create');
+                // B2B: XP removed
 
                 // Öğretmen ise atama modalı aç
                 if (role === 'teacher') {
@@ -1565,7 +1629,6 @@ const Dashboard: React.FC = () => {
 
                 setLoadingOverlay({ show: false, msg: "" }); // Yükleme bitti
                 toast.success('PDF analizi tamamlandı');
-                addXp(150);
                 navigate('/notes', { state: { initialTitle: file.name, initialContent: html, isNew: true } });
             } catch (err) {
                 setLoadingOverlay({ show: false, msg: "" });
@@ -1870,9 +1933,6 @@ const Dashboard: React.FC = () => {
             ) : (
                 <StudentDashboard
                     notes={notes}
-                    xp={xp}
-                    level={level}
-                    nextLevelXp={nextLevelXp}
                     onNoteClick={handleNoteClick}
                     onDeleteNote={handleDeleteNote}
                     onShareNote={handleShareNote}

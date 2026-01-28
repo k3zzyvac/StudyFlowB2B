@@ -11,8 +11,10 @@ export interface Profile {
     user_id: string;
     email: string;
     role: UserRole;
-    xp: number;
-    level: number;
+    institution_id?: string;
+    class_id?: string;
+    daily_usage_count?: number;
+    last_usage_reset?: string;
 }
 
 export interface SchoolClass {
@@ -99,4 +101,5 @@ export interface WeeklyReport {
     topic: string;
     note: string;
     rating: number;
+    institution_id?: string;
 }

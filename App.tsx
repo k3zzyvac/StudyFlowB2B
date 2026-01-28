@@ -6,9 +6,7 @@ import Notes from './pages/Notes';
 import Exam from './pages/Exam';
 import Auth from './pages/Auth';
 import Pomodoro from './components/Pomodoro';
-import LevelUpModal from './components/LevelUpModal';
 import { LanguageProvider } from './lib/LanguageContext';
-import { GamificationProvider } from './lib/GamificationContext';
 import { supabase } from './lib/supabaseClient';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -19,7 +17,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         {children}
       </main>
       <Pomodoro />
-      <LevelUpModal />
     </div>
   );
 };
@@ -33,7 +30,7 @@ const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => 
       // Demo authentication check (Staff or Student via localStorage)
       const isStaff = localStorage.getItem('staff_authenticated') === 'true';
       const isStudent = localStorage.getItem('student_authenticated') === 'true';
-      
+
       if (isStaff || isStudent) {
         setIsAuthenticated(true);
         return;
@@ -48,11 +45,11 @@ const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         setIsAuthenticated(false);
       }
     };
-    
+
     checkAuth();
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       const isStaff = localStorage.getItem('staff_authenticated') === 'true';
       const isStudent = localStorage.getItem('student_authenticated') === 'true';
       setIsAuthenticated(!!session || isStaff || isStudent);
@@ -75,18 +72,16 @@ const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 const App: React.FC = () => {
   return (
     <LanguageProvider>
-      <GamificationProvider>
-        <Router>
-          <Routes>
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
-            <Route path="/notes" element={<PrivateRoute><Notes /></PrivateRoute>} />
-            <Route path="/exam" element={<PrivateRoute><Exam /></PrivateRoute>} />
-            <Route path="/share/:id" element={<PrivateRoute><Notes /></PrivateRoute>} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Router>
-      </GamificationProvider>
+      <Router>
+        <Routes>
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+          <Route path="/notes" element={<PrivateRoute><Notes /></PrivateRoute>} />
+          <Route path="/exam" element={<PrivateRoute><Exam /></PrivateRoute>} />
+          <Route path="/share/:id" element={<PrivateRoute><Notes /></PrivateRoute>} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Router>
     </LanguageProvider>
   );
 };

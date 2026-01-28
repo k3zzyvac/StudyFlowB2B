@@ -4,7 +4,6 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { aiHelper } from '../lib/aiHelper';
 import { useLanguage } from '../lib/LanguageContext';
-import { useGamification } from '../lib/GamificationContext';
 import toast from 'react-hot-toast';
 
 
@@ -18,7 +17,6 @@ const Notes: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const { t, language } = useLanguage();
-    const { addXp } = useGamification();
     const state = location.state as any;
 
     const [noteId, setNoteId] = useState<string | null>(state?.noteId || null);
@@ -157,7 +155,7 @@ const Notes: React.FC = () => {
                 });
 
                 setNoteId(newId);
-                addXp(250);
+                // B2B: XP removed
                 if (isUuid) toast.success("Not kütüphanenize kopyalandı");
             }
 
@@ -173,7 +171,7 @@ const Notes: React.FC = () => {
         } finally {
             setSaving(false);
         }
-    }, [noteId, editorTitle, addXp]);
+    }, [noteId, editorTitle]);
 
     const handlePdfExport = () => {
         const element = document.getElementById('printable-area');

@@ -4,12 +4,10 @@ import { useNavigate } from 'react-router-dom';
 import { aiHelper } from '../lib/aiHelper';
 import { ExamQuestion } from '../types';
 import { useLanguage } from '../lib/LanguageContext';
-import { useGamification } from '../lib/GamificationContext';
 
 const Exam: React.FC = () => {
     const navigate = useNavigate();
     const { t, language } = useLanguage();
-    const { addXp } = useGamification();
     const [step, setStep] = useState<'setup' | 'quiz' | 'result'>('setup');
 
     const [topics, setTopics] = useState('');
@@ -101,10 +99,6 @@ const Exam: React.FC = () => {
             setShowExplanation(false);
         } else {
             setStep('result');
-            const score = calculateScore();
-            const wrongs = questions.length - score;
-            const totalXp = (score * 25) - (wrongs * 5);
-            if (totalXp > 0) addXp(totalXp);
         }
     };
 
@@ -120,7 +114,6 @@ const Exam: React.FC = () => {
         const mistakeText = mistakes.map(q => `Q: ${q.question}\nCorrect: ${q.options[q.correctIndex]}\nExplanation: ${q.explanation}`).join('\n---\n');
         try {
             const noteHtml = await aiHelper.generateNote(`Exam Analysis: ${topics}`, 'General', `Teach me these mistakes:\n${mistakeText}`, language);
-            await addXp(100);
             navigate('/notes', { state: { initialContent: noteHtml, initialTitle: `Analiz: ${topics}`, isNew: true } });
         } catch (e) { setLoading(false); alert("Error"); }
     };
