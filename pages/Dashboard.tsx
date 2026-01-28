@@ -629,15 +629,35 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
                         </p>
                     </div>
                 </div>
-                {viewMode !== 'classes' && (
-                    <button onClick={() => {
-                        if (viewMode === 'detail') setViewMode('reports');
-                        else if (viewMode === 'reports') setViewMode('dates');
-                        else setViewMode('classes');
-                    }} className="text-gray-400 hover:text-white flex items-center gap-2 font-bold">
-                        <i className="fas fa-arrow-left"></i> Geri
+                <div className="flex items-center gap-4">
+                    {viewMode !== 'classes' && (
+                        <button onClick={() => {
+                            if (viewMode === 'detail') setViewMode('reports');
+                            else if (viewMode === 'reports') setViewMode('dates');
+                            else setViewMode('classes');
+                        }} className="text-gray-400 hover:text-white flex items-center gap-2 font-bold">
+                            <i className="fas fa-arrow-left"></i> Geri
+                        </button>
+                    )}
+                    {/* Diagnostic Button (Temporary) */}
+                    <button
+                        onClick={async () => {
+                            const loadingToast = toast.loading("AI Sistemleri test ediliyor...");
+                            try {
+                                const results = await aiHelper.runDiagnostics();
+                                toast.dismiss(loadingToast);
+                                toast.success(`Gemini: ${results.gemini}\nGroq: ${results.groq}`, { duration: 5000 });
+                            } catch (e) {
+                                toast.dismiss(loadingToast);
+                                toast.error("Test sırasında kritik hata!");
+                            }
+                        }}
+                        className="bg-white/5 hover:bg-white/10 text-zinc-500 hover:text-white p-2 rounded-lg transition-all text-xs flex items-center gap-2"
+                        title="Sistem Testi"
+                    >
+                        <i className="fas fa-vial"></i> Test
                     </button>
-                )}
+                </div>
             </header>
 
             {viewMode === 'classes' && (
@@ -1436,8 +1456,8 @@ const Dashboard: React.FC = () => {
             if (!aiTopic) { alert("Konu zorunlu."); return; }
 
             // USAGE CHECK
-            if (role === 'student' && usageStats.count >= 5) {
-                toast.error("Günlük AI kullanım limitine ulaştınız (5/5).");
+            if (role === 'student' && usageStats.count >= 3) {
+                toast.error("Günlük AI kullanım limitine ulaştınız (3/3).");
                 return;
             }
 
@@ -1532,8 +1552,8 @@ const Dashboard: React.FC = () => {
             const base64 = re.target?.result as string;
             try {
                 // USAGE CHECK
-                if (role === 'student' && usageStats.count >= 5) {
-                    toast.error("Günlük AI kullanım limitine ulaştınız (5/5).");
+                if (role === 'student' && usageStats.count >= 3) {
+                    toast.error("Günlük AI kullanım limitine ulaştınız (3/3).");
                     setLoadingOverlay({ show: false, msg: "" });
                     return;
                 }

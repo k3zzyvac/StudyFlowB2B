@@ -40,10 +40,29 @@ Free Gemini API limitleri bir haftalık yoğun kullanımda çabuk dolmaktadır. 
 
 ### Teknik Gereksinimler
 1.  **Dual Client:** `aiHelper.ts` içinde hem Google Gemini hem de Groq (Qwen 3-32B) istemcileri hazır bulunmalıdır.
-2.  **Yük Paylaşımı (Load Balancing):**
-    *   **Groq (Qwen 3-32B):** PDF özetleme ve anlık not oluşturma gibi hız ve Türkçe dil disiplini gerektiren görevler için kullanılmalıdır.
-    *   **Gemini:** Daha büyük veri analizi gerektiren "Haftalık Verimlilik Raporu Analizi" gibi işlerde kullanılmalıdır.
-3.  **Hata Yönetimi:** Birincil API hata verirse (Error 429), sistem otomatik olarak ikincil API'ye geçiş yapmalıdır.
+## 🚀 API Yönlendirme Stratejisi
+
+### 1. AI Not Oluşturma
+- **Birincil (Öncelikli):** Gemini
+- **İkincil (Yedek):** Qwen
+- **Kural:** Gemini hata verirse veya limiti dolarsa otomatik olarak Qwen'e geç.
+
+### 2. PDF Özetleme
+- **Birincil (Öncelikli):** Qwen
+- **İkincil (Yedek):** Gemini
+- **Kural:** Qwen hata verirse veya limiti dolarsa otomatik olarak Gemini'ye geç.
+
+### 3. Sınav (Quiz) Oluşturma
+- **Birincil (Öncelikli):** Gemini
+- **İkincil (Yedek):** Qwen
+- **Kural:** Gemini hata verirse veya limiti dolarsa otomatik olarak Qwen'e geç.
+
+### 🛠 Uygulama ve Akış Kuralları
+- **Otomatik Geçiş (Failover):** Birincil API'den herhangi bir hata kodu (Timeout, Rate Limit, Auth Error) dönerse, sistem kullanıcıya hissettirmeden İkincil API'ye istek atmalıdır.
+- **Veri Tutarlılığı:** Her iki model için de ortak prompt şablonları kullanılmalı, çıktı formatı (JSON/Text) sabit tutulmalıdır.
+- **Loglama:** İşlemin hangi model ile başarıyla tamamlandığı veya hangi modelde hata alındığı veritabanına kaydedilmelidir.
+### 4. Hata Yönetimi
+-  **Hata Yönetimi:** Birincil API hata verirse (Error 429), sistem otomatik olarak ikincil API'ye geçiş yapmalıdır.
 
 ---
 

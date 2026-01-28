@@ -74,16 +74,15 @@ export const GamificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      // 1. Profili Güncelle
+      // B2B Geçişi: XP ve Aktivite loglaması geçici olarak devre dışı (403 hatalarını önlemek için)
+      /*
       await supabase.from('profiles').update({ xp: newXp, level: newLevel }).eq('user_id', user.id);
-
-      // 2. Aktivite Loguna Ekle (Grafik için)
       await supabase.from('activity_logs').insert([{
         user_id: user.id,
         xp_amount: amount,
         action_type: reason
       }]);
-
+      */
     } else {
       // Guest Mode Save
       localStorage.setItem('guest_xp', newXp.toString());
