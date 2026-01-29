@@ -11,7 +11,7 @@ export const translations = {
     no_account: "HESABINIZ YOK MU?",
     have_account: "ZATEN ÜYE MİSİNİZ?",
     marketing_accept: "Gelişmelerden haberdar olmak istiyorum",
-    
+
     // Sidebar
     dashboard: "Panel",
     files: "Notlarım",
@@ -56,7 +56,7 @@ export const translations = {
     saved: "Kaydedildi",
     mind_map: "Zihin Haritası",
     ask_question: "Notunuzla ilgili soru sorun...",
-    
+
     // Exam
     exam_setup: "Sınav Hazırlığı",
     exam_desc: "Konu eksiklerinizi belirlemek için özelleştirilmiş testler.",
@@ -70,7 +70,7 @@ export const translations = {
     save_mistakes: "Hataları Analiz Et",
     return_menu: "Panele Dön",
     ph_exam_topic: "Konu başlıklarını giriniz...",
-    
+
     // Pomodoro
     work: "Çalışma",
     break: "Mola",
@@ -93,10 +93,6 @@ export const translations = {
     yt_summary_ready: "Analiz Hazır",
     ph_yt_link: "YouTube linkini yapıştırın...",
 
-    // Level Up
-    level_up: "YENİ SEVİYE!",
-    new_features_unlocked: "Yeni rütbe ve özellikler açıldı.",
-    awesome: "TAMAM"
   },
   en: {
     // Auth
@@ -191,9 +187,5 @@ export const translations = {
     yt_summary_ready: "Analysis Ready",
     ph_yt_link: "Paste YouTube link...",
 
-    // Level Up
-    level_up: "LEVEL UP!",
-    new_features_unlocked: "New rank and features unlocked.",
-    awesome: "AWESOME"
   }
 };

@@ -304,7 +304,7 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
         classDensity: [] as { name: string, value: number, color: string }[],
         assignmentTrend: [] as { day: string, count: number }[],
         activeRatio: { active: 0, total: 0 },
-        totals: { students: 0, teachers: 0, classes: 0, reports: 0 }
+        totals: { students: 0, assignments: 0, classes: 0, reports: 0 }
     });
 
     useEffect(() => {
@@ -372,7 +372,7 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
 
             // 4. Totals for Summary Cards
             const { count: studentCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('institution_id', instId).eq('role', 'student');
-            const { count: teacherCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('institution_id', instId).eq('role', 'teacher');
+            const { count: assignmentCount } = await supabase.from('assignments').select('*', { count: 'exact', head: true }).eq('institution_id', instId);
             const { count: classCount } = await supabase.from('classes').select('*', { count: 'exact', head: true }).eq('institution_id', instId);
             const { count: reportCount } = await supabase.from('weekly_reports').select('*', { count: 'exact', head: true }).eq('institution_id', instId);
 
@@ -380,7 +380,7 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
                 ...prev,
                 totals: {
                     students: studentCount || 0,
-                    teachers: teacherCount || 0,
+                    assignments: assignmentCount || 0,
                     classes: classCount || 0,
                     reports: reportCount || 0
                 }
@@ -646,41 +646,19 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
                             input.onchange = async (e: any) => {
                                 const file = e.target.files[0];
                                 if (!file) return;
-
                                 try {
                                     const instId = localStorage.getItem('institution_id');
-                                    if (!instId) {
-                                        toast.error("Kurum ID bulunamadı");
-                                        return;
-                                    }
-
+                                    if (!instId) { toast.error("Kurum ID bulunamadı"); return; }
                                     const fileExt = file.name.split('.').pop();
                                     const fileName = `${instId}_logo_${Date.now()}.${fileExt}`;
-                                    const filePath = `${fileName}`;
-
-                                    const { error: uploadError } = await supabase.storage
-                                        .from('logos')
-                                        .upload(filePath, file);
-
+                                    const { error: uploadError } = await supabase.storage.from('logos').upload(fileName, file);
                                     if (uploadError) throw uploadError;
-
-                                    const { data: { publicUrl } } = supabase.storage
-                                        .from('logos')
-                                        .getPublicUrl(filePath);
-
-                                    const { error: updateError } = await supabase
-                                        .from('institutions')
-                                        .update({ logo_url: publicUrl })
-                                        .eq('id', instId);
-
+                                    const { data: { publicUrl } } = supabase.storage.from('logos').getPublicUrl(fileName);
+                                    const { error: updateError } = await supabase.from('institutions').update({ logo_url: publicUrl }).eq('id', instId);
                                     if (updateError) throw updateError;
-
                                     toast.success("Logo başarıyla güncellendi");
                                     window.location.reload();
-                                } catch (err: any) {
-                                    console.error("Logo upload error:", err);
-                                    toast.error("Logo yüklenirken hata oluştu");
-                                }
+                                } catch (err: any) { console.error("Logo upload error:", err); toast.error("Logo yüklenirken hata oluştu"); }
                             };
                             input.click();
                         }}
@@ -699,139 +677,206 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
                         </div>
                     </div>
                     <div>
-                        <h2 className="text-2xl font-black text-white tracking-tight text-white mb-0">YÖNETİM PANELİ</h2>
-                        <p className="text-purple-400 text-sm font-bold flex items-center gap-2">
-                            {institutionName}
-                        </p>
+                        <h2 className="text-2xl font-black text-white tracking-tight mb-0 uppercase">YÖNETİM PANELİ</h2>
+                        <p className="text-purple-400 text-sm font-bold flex items-center gap-2">{institutionName}</p>
                         <p className="text-gray-500 text-xs mt-1">
                             {viewMode === 'classes' && 'Sınıf Listesi'}
                             {viewMode === 'dates' && `${getSelectedClassLabel()} - Günlük Raporlar`}
                             {viewMode === 'reports' && `${getSelectedClassLabel()} - ${new Date(selectedDate).toLocaleDateString('tr-TR')} Raporları`}
+                            {viewMode === 'detail' && 'Rapor Detayı'}
                         </p>
                     </div>
                 </div>
-                <div className="flex items-center gap-4">
-                    {viewMode !== 'classes' && (
-                        <button onClick={() => {
-                            if (viewMode === 'detail') setViewMode('reports');
-                            else if (viewMode === 'reports') setViewMode('dates');
-                            else setViewMode('classes');
-                        }} className="text-gray-400 hover:text-white flex items-center gap-2 font-bold">
-                            <i className="fas fa-arrow-left"></i> Geri
-                        </button>
-                    )}
-                </div>
+                {viewMode !== 'classes' && (
+                    <button onClick={() => {
+                        if (viewMode === 'detail') setViewMode('reports');
+                        else if (viewMode === 'reports') setViewMode('dates');
+                        else setViewMode('classes');
+                    }} className="bg-[#18181B] border border-[#27272A] text-gray-400 hover:text-white px-4 py-2 rounded-xl flex items-center gap-2 font-bold transition-all shadow-lg hover:border-purple-500/50">
+                        <i className="fas fa-arrow-left"></i> Geri Dön
+                    </button>
+                )}
             </header>
 
             <PrincipalCharts data={analyticsData} />
 
-            {viewMode === 'classes' && (
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 animate-fade-in">
-                    {classList.map(cls => (
-                        <div key={cls.id} className="relative group">
-                            <button onClick={() => { setSelectedClass(cls.id); setViewMode('dates'); }}
-                                className="w-full p-6 rounded-2xl border border-[#27272A] bg-[#18181B] hover:border-purple-500 hover:bg-[#202025] transition-all">
-                                <div className="text-2xl font-black text-white group-hover:text-purple-400 transition-colors">
-                                    {cls.grade}-{cls.branch}
-                                </div>
-                                <div className="text-[10px] uppercase font-bold text-gray-500">Sınıf Dosyası</div>
-                            </button>
-                            <button onClick={() => handleDeleteClass(cls)} className="absolute -top-2 -right-2 w-6 h-6 bg-red-600 hover:bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <i className="fas fa-times"></i>
-                            </button>
-                        </div>
-                    ))}
-                    <button onClick={() => setShowAddClassModal(true)} className="p-6 rounded-2xl border border-dashed border-[#27272A] hover:border-white text-gray-500 hover:text-white transition-all flex flex-col items-center justify-center gap-2">
-                        <i className="fas fa-plus text-xl"></i>
-                        <span className="text-xs font-bold">Sınıf Ekle</span>
-                    </button>
-                </div>
-            )}
+            {(() => {
+                const getClassStatus = (classId: string) => {
+                    const classReports = reports
+                        .filter(r => r.class_id === classId)
+                        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                        .slice(0, 3);
+                    if (classReports.length === 0) return { color: 'text-gray-600', label: 'Veri Yok', icon: 'fa-minus', avg: 0 };
+                    const avg = classReports.reduce((acc, curr) => acc + curr.rating, 0) / classReports.length;
+                    if (avg >= 4.5) return { color: 'text-[#4ADE80]', label: 'Mükemmel', icon: 'fa-star', avg };
+                    if (avg >= 3.0) return { color: 'text-[#16A34A]', label: 'İyi', icon: 'fa-check-circle', avg };
+                    if (avg >= 2.0) return { color: 'text-[#FACC15]', label: 'Dikkat', icon: 'fa-exclamation-triangle', avg };
+                    return { color: 'text-[#EF4444]', label: 'Kritik Durum', icon: 'fa-bell', avg };
+                };
 
-            {viewMode === 'dates' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in">
-                    {getUniqueDates().length === 0 ? (
-                        <div className="col-span-full text-center py-20 text-gray-500">Bu sınıfa ait günlük rapor bulunamadı.</div>
-                    ) : (
-                        getUniqueDates().map(date => (
-                            <button key={date} onClick={() => { setSelectedDate(date); setViewMode('reports'); }}
-                                className="flex items-center gap-4 p-6 rounded-2xl border border-[#27272A] bg-[#18181B] hover:border-blue-500 hover:bg-[#202025] transition-all text-left">
-                                <div className="w-12 h-12 bg-blue-500/10 text-blue-400 rounded-xl flex items-center justify-center text-xl"><i className="fas fa-calendar-day"></i></div>
-                                <div>
-                                    <h4 className="text-white font-bold">{new Date(date).toLocaleDateString('tr-TR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h4>
-                                    <p className="text-xs text-gray-500 mt-1">{reports.filter(r => r.class_id === selectedClass && r.date === date).length} rapor</p>
-                                </div>
-                            </button>
-                        ))
-                    )}
-                </div>
-            )}
-
-            {viewMode === 'reports' && (
-                <div className="space-y-6 animate-fade-in">
-                    <div className="flex justify-between items-center">
-                        <h3 className="text-white font-bold">{new Date(selectedDate).toLocaleDateString('tr-TR')} - {getSelectedClassLabel()}</h3>
-                        <button onClick={generateWeeklyPDF} className="bg-red-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-red-700 transition-all flex items-center gap-2">
-                            <i className="fas fa-file-pdf"></i> PDF İndir
-                        </button>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {getReportsForDate().length === 0 ? (
-                            <div className="col-span-full text-center py-20 text-gray-500">Bu tarihe ait rapor bulunamadı.</div>
-                        ) : (
-                            getReportsForDate().map(r => (
-                                <div key={r.id} onClick={() => { setActiveReport(r); setViewMode('detail'); }} className="group bg-[#202025] border border-[#27272A] p-4 rounded-2xl hover:border-purple-500/50 cursor-pointer relative">
-                                    <div className="flex justify-between items-start mb-3">
-                                        <div className="w-10 h-10 bg-purple-500/10 text-purple-400 rounded-lg flex items-center justify-center"><i className="fas fa-file-alt"></i></div>
-                                        <button onClick={(e) => handleDeleteReport(r.id, e)} className="text-gray-600 hover:text-red-500 p-2 hover:bg-red-500/10 rounded-lg transition-colors"><i className="fas fa-trash"></i></button>
+                return (
+                    <div className="animate-fade-in pb-10">
+                        {viewMode === 'classes' && (
+                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                                {classList.map(cls => {
+                                    const status = getClassStatus(cls.id);
+                                    return (
+                                        <div key={cls.id} className="relative group">
+                                            <button onClick={() => { setSelectedClass(cls.id); setViewMode('dates'); }}
+                                                className={`w-full p-6 rounded-3xl border ${status.avg < 2 && status.avg > 0 ? 'border-red-600/50 bg-red-900/10' : 'border-[#27272A] bg-[#18181B]'} hover:border-purple-500 hover:bg-[#202025] transition-all shadow-xl`}>
+                                                <div className="text-3xl font-black text-white group-hover:text-purple-400 transition-colors mb-1">
+                                                    {cls.grade}-{cls.branch}
+                                                </div>
+                                                <div className="flex flex-col items-center gap-1">
+                                                    <div className={`text-[10px] uppercase font-bold ${status.color} flex items-center gap-1.5`}>
+                                                        <i className={`fas ${status.icon}`}></i>
+                                                        {status.label}
+                                                    </div>
+                                                    <div className="text-[9px] text-gray-500 font-bold opacity-60">Sınıf Dosyası</div>
+                                                    {status.avg > 0 && (
+                                                        <div className="flex gap-0.5 mt-1">
+                                                            {[1, 2, 3, 4, 5].map(star => (
+                                                                <div key={star} className={`w-1.5 h-1.5 rounded-full ${star <= Math.round(status.avg) ? status.color.replace('text-', 'bg-') : 'bg-gray-800'}`}></div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </button>
+                                            <button onClick={() => handleDeleteClass(cls)} className="absolute -top-2 -right-2 w-7 h-7 bg-red-600 hover:bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center shadow-lg z-10">
+                                                <i className="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                                <button onClick={() => setShowAddClassModal(true)} className="p-6 rounded-3xl border border-dashed border-[#27272A] hover:border-white text-gray-500 hover:text-white transition-all flex flex-col items-center justify-center gap-2 group">
+                                    <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-white/10 transition-colors">
+                                        <i className="fas fa-plus text-xl"></i>
                                     </div>
-                                    <h4 className="text-white font-bold text-sm truncate">{r.lesson}</h4>
-                                    <p className="text-gray-400 text-xs mt-1">{r.teacher_name}</p>
-                                    <p className="text-gray-500 text-xs mt-1 truncate">{r.topic}</p>
-                                    <div className="mt-3 flex gap-1">{[...Array(5)].map((_, i) => <i key={i} className={`fas fa-star text-[10px] ${i < r.rating ? 'text-yellow-500' : 'text-gray-800'}`}></i>)}</div>
+                                    <span className="text-xs font-bold">Sınıf Ekle</span>
+                                </button>
+                            </div>
+                        )}
+
+                        {viewMode === 'dates' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {getUniqueDates().length === 0 ? (
+                                    <div className="col-span-full border border-dashed border-[#27272A] rounded-3xl py-20 text-center text-gray-500 flex flex-col items-center gap-4">
+                                        <i className="fas fa-calendar-times text-4xl opacity-20"></i>
+                                        <p className="font-bold">Bu sınıfa ait günlük rapor bulunamadı.</p>
+                                    </div>
+                                ) : (
+                                    getUniqueDates().map(date => (
+                                        <button key={date} onClick={() => { setSelectedDate(date); setViewMode('reports'); }}
+                                            className="flex items-center gap-4 p-6 rounded-2xl border border-[#27272A] bg-[#18181B] hover:border-blue-500 hover:bg-[#202025] transition-all text-left group">
+                                            <div className="w-14 h-14 bg-blue-500/10 text-blue-400 rounded-2xl flex items-center justify-center text-2xl group-hover:scale-110 transition-transform"><i className="fas fa-calendar-day"></i></div>
+                                            <div>
+                                                <h4 className="text-white font-bold">{new Date(date).toLocaleDateString('tr-TR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h4>
+                                                <p className="text-xs text-gray-500 mt-1 uppercase tracking-widest font-black">{reports.filter(r => r.class_id === selectedClass && r.date === date).length} YÜKLENEN RAPOR</p>
+                                            </div>
+                                        </button>
+                                    ))
+                                )}
+                            </div>
+                        )}
+
+                        {viewMode === 'reports' && (
+                            <div className="space-y-6">
+                                <div className="flex justify-between items-center bg-[#18181B]/50 p-4 rounded-2xl border border-white/5">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-2 h-8 bg-purple-600 rounded-full"></div>
+                                        <h3 className="text-white font-black uppercase tracking-tight">{new Date(selectedDate).toLocaleDateString('tr-TR')} - {getSelectedClassLabel()}</h3>
+                                    </div>
+                                    <button onClick={generateWeeklyPDF} className="bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-black text-sm hover:bg-emerald-500 transition-all flex items-center gap-2 shadow-lg shadow-emerald-900/40">
+                                        <i className="fas fa-file-pdf"></i> GÜNLÜK PDF ÇIKTISI
+                                    </button>
                                 </div>
-                            ))
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {getReportsForDate().length === 0 ? (
+                                        <div className="col-span-full border border-dashed border-[#27272A] rounded-3xl py-20 text-center text-gray-500">Bu tarihe ait rapor bulunamadı.</div>
+                                    ) : (
+                                        getReportsForDate().map(r => (
+                                            <div key={r.id} onClick={() => { setActiveReport(r); setViewMode('detail'); }} className="group bg-[#18181B] border border-[#27272A] p-5 rounded-3xl hover:border-purple-500 transition-all cursor-pointer relative shadow-lg">
+                                                <div className="flex justify-between items-start mb-4">
+                                                    <div className="w-12 h-12 bg-purple-500/10 text-purple-400 rounded-2xl flex items-center justify-center text-xl shadow-inner"><i className="fas fa-file-alt"></i></div>
+                                                    <button onClick={(e) => handleDeleteReport(r.id, e)} className="text-gray-600 hover:text-red-500 p-2 hover:bg-red-500/10 rounded-lg transition-colors"><i className="fas fa-trash"></i></button>
+                                                </div>
+                                                <h4 className="text-white font-black text-lg mb-1 truncate">{r.lesson}</h4>
+                                                <p className="text-purple-400 font-bold text-xs uppercase mb-2">{r.teacher_name}</p>
+                                                <p className="text-gray-500 text-xs line-clamp-2 leading-relaxed">{r.topic}</p>
+                                                <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
+                                                    <div className="flex gap-1">{[...Array(5)].map((_, i) => <i key={i} className={`fas fa-star text-[10px] ${i < r.rating ? 'text-yellow-500' : 'text-gray-800'}`}></i>)}</div>
+                                                    <span className="text-[10px] text-gray-400 font-black">{r.rating}/5 Puan</span>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {viewMode === 'detail' && activeReport && (
+                            <div className="bg-white rounded-[2rem] p-10 max-w-4xl mx-auto text-black shadow-2xl animate-fade-in relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-full h-3 bg-gradient-to-r from-purple-600 to-indigo-600"></div>
+                                <div className="mb-10 border-b-2 border-gray-100 pb-6 flex justify-between items-end">
+                                    <div>
+                                        <span className="text-[10px] font-black text-purple-600 uppercase tracking-[0.3em] mb-2 block">Resmi Ders Raporu</span>
+                                        <h1 className="text-4xl font-black text-gray-900 tracking-tight leading-none uppercase">RAPOR DETAYI</h1>
+                                        <p className="text-gray-400 font-bold mt-2 flex items-center gap-2">
+                                            <i className="fas fa-calendar-day"></i> {new Date(activeReport.date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-col items-end gap-3">
+                                        {institutionLogo && <img src={institutionLogo} alt="Logo" className="h-16 object-contain" />}
+                                        <button onClick={() => generateDetailPDF(activeReport)} className="bg-gray-900 text-white px-6 py-3 rounded-2xl text-xs font-black hover:bg-black transition-all flex items-center gap-2 shadow-xl">
+                                            <i className="fas fa-file-pdf"></i> PDF OLARAK İNDİR
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                                    <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100">
+                                        <label className="text-[10px] font-black text-gray-400 block mb-2 uppercase tracking-widest">Ders Adı</label>
+                                        <div className="font-black text-2xl text-gray-800">{activeReport.lesson}</div>
+                                    </div>
+                                    <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100">
+                                        <label className="text-[10px] font-black text-gray-400 block mb-2 uppercase tracking-widest">Öğretmen</label>
+                                        <div className="font-black text-2xl text-gray-800">{activeReport.teacher_name}</div>
+                                    </div>
+                                </div>
+                                <div className="space-y-6">
+                                    <div className="bg-gray-50 p-8 rounded-3xl border border-gray-100 shadow-inner">
+                                        <label className="text-[10px] font-black text-gray-400 block mb-3 uppercase tracking-widest">İşlenen Konu</label>
+                                        <div className="font-bold text-lg text-gray-700 leading-relaxed italic">"{activeReport.topic}"</div>
+                                    </div>
+                                    <div className="bg-gray-50 p-8 rounded-3xl border border-gray-100 shadow-inner">
+                                        <label className="text-[10px] font-black text-gray-400 block mb-3 uppercase tracking-widest">Eğitmen Notları</label>
+                                        <div className="text-lg text-gray-600 leading-relaxed whitespace-pre-wrap">{activeReport.note}</div>
+                                    </div>
+                                </div>
+                                <div className="mt-10 flex justify-center">
+                                    <div className="bg-purple-600 text-white px-8 py-3 rounded-full font-black flex items-center gap-4">
+                                        <span>Ders Verimliliği:</span>
+                                        <div className="flex gap-1">
+                                            {[...Array(5)].map((_, i) => <i key={i} className={`fas fa-star ${i < activeReport.rating ? 'text-yellow-300' : 'text-purple-400'}`}></i>)}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         )}
                     </div>
-                </div>
-            )}
+                );
+            })()}
 
-            {viewMode === 'detail' && activeReport && (
-                <div className="bg-white rounded-3xl p-8 max-w-3xl mx-auto text-black shadow-2xl animate-fade-in relative min-h-[600px]">
-                    {/* Basit Detay Görünümü */}
-                    <div className="absolute top-0 left-0 w-full h-2 bg-purple-600"></div>
-                    <div className="mb-8 border-b pb-4 flex justify-between items-start">
-                        <div>
-                            <h1 className="text-2xl font-black text-gray-900">RAPOR DETAYI</h1>
-                            <p className="text-gray-500">{new Date(activeReport.date).toLocaleDateString('tr-TR')}</p>
-                        </div>
-                        <div className="flex items-center gap-4">
-                            {institutionLogo && <img src={institutionLogo} alt="Logo" className="h-12 object-contain" />}
-                            <button onClick={() => generateDetailPDF(activeReport)} className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-black flex items-center gap-2">
-                                <i className="fas fa-download"></i> İndir
-                            </button>
-                        </div>
-                    </div>
-                    <div className="space-y-6">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-gray-50 p-4 rounded-xl"><label className="text-xs font-bold text-gray-400 block mb-1">DERS</label><div className="font-bold text-lg">{activeReport.lesson}</div></div>
-                            <div className="bg-gray-50 p-4 rounded-xl"><label className="text-xs font-bold text-gray-400 block mb-1">ÖĞRETMEN</label><div className="font-bold text-lg">{activeReport.teacher_name}</div></div>
-                        </div>
-                        <div><label className="text-xs font-bold text-gray-400 block mb-1">KONU</label><div className="bg-gray-50 p-4 rounded-xl font-medium">{activeReport.topic}</div></div>
-                        <div><label className="text-xs font-bold text-gray-400 block mb-1">NOTLAR</label><div className="bg-gray-50 p-4 rounded-xl leading-relaxed">{activeReport.note}</div></div>
-                    </div>
-                </div>
-            )}
-
-            {/* SINIF EKLEME MODALI */}
+            {/* MODALLAR */}
             {showAddClassModal && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4 animate-fade-in">
-                    <div className="bg-[#18181B] border border-[#27272A] w-full max-w-sm rounded-2xl shadow-2xl p-6">
-                        <h3 className="text-white font-bold text-lg mb-4">Yeni Sınıf Ekle</h3>
-                        <div className="space-y-4">
+                <div className="fixed inset-0 bg-black/90 backdrop-blur-xl z-[200] flex items-center justify-center p-4 animate-fade-in">
+                    <div className="bg-[#18181B] border border-white/5 w-full max-w-md rounded-[2.5rem] shadow-2xl p-10 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-purple-600/10 blur-[60px] rounded-full -mr-16 -mt-16"></div>
+                        <h3 className="text-white font-black text-3xl mb-1 tracking-tight">Yeni Sınıf Ekle</h3>
+                        <p className="text-gray-500 text-sm mb-8 font-medium">Kurum yapınıza yeni bir sınıf tanımlayın.</p>
+                        <div className="space-y-6">
                             <div>
-                                <label className="text-xs text-gray-500 font-bold uppercase mb-2 block">Sınıf Seviyesi</label>
-                                <select value={newClassGrade} onChange={(e) => setNewClassGrade(e.target.value)} className="w-full bg-[#0F0F12] border border-[#27272A] rounded-xl p-3 text-white outline-none focus:border-purple-500">
+                                <label className="text-[10px] text-gray-500 font-black uppercase mb-3 block tracking-widest">Sınıf Seviyesi</label>
+                                <select value={newClassGrade} onChange={(e) => setNewClassGrade(e.target.value)} className="w-full bg-[#0F0F12] border border-white/5 rounded-2xl p-4 text-white font-bold outline-none focus:border-purple-500/50 appearance-none">
                                     <option value="9">9. Sınıf</option>
                                     <option value="10">10. Sınıf</option>
                                     <option value="11">11. Sınıf</option>
@@ -840,35 +885,31 @@ const PrincipalDashboard: React.FC<{ weeklyReports: WeeklyReport[], onClassChang
                                 </select>
                             </div>
                             <div>
-                                <label className="text-xs text-gray-500 font-bold uppercase mb-2 block">Şube</label>
-                                <input type="text" value={newClassBranch} onChange={(e) => setNewClassBranch(e.target.value)} className="w-full bg-[#0F0F12] border border-[#27272A] rounded-xl p-3 text-white outline-none focus:border-purple-500" placeholder="A, B, C..." />
+                                <label className="text-[10px] text-gray-500 font-black uppercase mb-3 block tracking-widest">Şube (Örn: A, Fen, TM)</label>
+                                <input type="text" value={newClassBranch} onChange={(e) => setNewClassBranch(e.target.value)} className="w-full bg-[#0F0F12] border border-white/5 rounded-2xl p-4 text-white font-bold outline-none focus:border-purple-500/50 transition-all" placeholder="Şube ismi girin..." />
                             </div>
-                            <div className="flex gap-2 pt-2">
-                                <button onClick={() => setShowAddClassModal(false)} className="flex-1 bg-[#27272A] hover:bg-[#3F3F46] text-white font-bold py-3 rounded-xl transition-all">İptal</button>
-                                <button onClick={handleAddClass} className="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-xl transition-all">Ekle</button>
+                            <div className="flex gap-4 pt-4">
+                                <button onClick={() => setShowAddClassModal(false)} className="flex-1 bg-white/5 hover:bg-white/10 text-gray-400 font-black py-4 rounded-2xl transition-all">İPTAL</button>
+                                <button onClick={handleAddClass} className="flex-1 bg-white text-black font-black py-4 rounded-2xl hover:bg-gray-200 transition-all shadow-xl shadow-white/5">EKLE</button>
                             </div>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* SINIF SİLME ONAY MODALI */}
             {showDeleteClassModal && classToDelete && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4 animate-fade-in">
-                    <div className="bg-[#18181B] border border-red-500/30 w-full max-w-sm rounded-2xl shadow-2xl p-6">
-                        <div className="text-center mb-6">
-                            <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <i className="fas fa-exclamation-triangle text-red-400 text-2xl"></i>
-                            </div>
-                            <h3 className="text-white font-bold text-lg mb-2">Sınıfı Sil</h3>
-                            <p className="text-gray-400 text-sm">
-                                <strong className="text-white">{classToDelete.grade}-{classToDelete.branch}</strong> sınıfını silmek istediğinize emin misiniz?
-                            </p>
-                            <p className="text-red-400 text-xs mt-2">Bu işlem geri alınamaz!</p>
+                <div className="fixed inset-0 bg-black/90 backdrop-blur-xl z-[200] flex items-center justify-center p-4 animate-fade-in">
+                    <div className="bg-[#18181B] border border-red-500/20 w-full max-w-sm rounded-[2.5rem] shadow-2xl p-10 text-center">
+                        <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+                            <i className="fas fa-trash-alt text-red-500 text-3xl"></i>
                         </div>
-                        <div className="flex gap-2">
-                            <button onClick={() => { setShowDeleteClassModal(false); setClassToDelete(null); }} className="flex-1 bg-[#27272A] hover:bg-[#3F3F46] text-white font-bold py-3 rounded-xl transition-all">İptal</button>
-                            <button onClick={confirmDeleteClass} className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl transition-all">Sil</button>
+                        <h3 className="text-white font-black text-2xl mb-2">Sınıfı Silinsin mi?</h3>
+                        <p className="text-gray-500 text-sm mb-8 leading-relaxed">
+                            <strong className="text-white font-black text-lg">{classToDelete.grade}-{classToDelete.branch}</strong> şubesini ve tüm arşivini silmek üzeresiniz.
+                        </p>
+                        <div className="flex flex-col gap-3">
+                            <button onClick={confirmDeleteClass} className="w-full bg-red-600 hover:bg-red-500 text-white font-black py-4 rounded-2xl transition-all shadow-lg shadow-red-900/30">EVET, TAMAMEN SİL</button>
+                            <button onClick={() => { setShowDeleteClassModal(false); setClassToDelete(null); }} className="w-full bg-white/5 hover:bg-white/10 text-gray-400 font-bold py-4 rounded-2xl transition-all">VAZGEÇ</button>
                         </div>
                     </div>
                 </div>
