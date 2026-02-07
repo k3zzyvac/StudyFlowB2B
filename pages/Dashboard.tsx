@@ -194,7 +194,7 @@ const TeacherDashboard: React.FC<{
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {/* 1. AI NOT OLUŞTURUCU (MODALI AÇAR) */}
                 <button onClick={onAiNoteGen} className="group flex flex-col items-center justify-center gap-2 p-8 bg-white text-black rounded-2xl transition-all hover:scale-105 shadow-xl shadow-white/5 relative overflow-hidden h-40">
                     <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-white opacity-50"></div>
@@ -225,18 +225,6 @@ const TeacherDashboard: React.FC<{
                     <div>
                         <h3 className="text-white font-bold text-lg">Sınıf Günlüğü</h3>
                         <p className="text-gray-400 text-xs mt-1">Haftalık ders raporlarını gir.</p>
-                    </div>
-                </div>
-
-                {/* 4. ÖĞRENCİ DURUMLARI */}
-                <div className="bg-gradient-to-br from-orange-900/10 to-amber-900/10 border border-orange-500/30 p-6 rounded-2xl relative overflow-hidden hover:border-orange-500 transition-all cursor-pointer group h-40 flex flex-col justify-between">
-                    <div className="absolute top-2 right-2 bg-orange-500/20 text-orange-400 text-[10px] font-bold px-2 py-1 rounded border border-orange-500/30">AKTİF</div>
-                    <div className="w-12 h-12 bg-orange-600/20 text-orange-400 rounded-xl flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
-                        <i className="fas fa-users"></i>
-                    </div>
-                    <div>
-                        <h3 className="text-white font-bold text-lg">Öğrenci Durumları</h3>
-                        <p className="text-gray-400 text-xs mt-1">Gelişim raporlarını incele.</p>
                     </div>
                 </div>
             </div>
